@@ -50,26 +50,31 @@ do_compile () {
     pip3 install --target ${WORKDIR}/py west
     export PYTHONPATH="${WORKDIR}/py${PYTHONPATH:+:$PYTHONPATH}"
     export PATH="${WORKDIR}/py/bin:${PATH}"
-    cd ${S}
-    if [ ! -d .west ]; then
-        west init -l manifest
-    fi
+    # The repo root already has a .west workspace. west walks parents, so
+    # init this firmware tree from /tmp instead of inside that workspace.
+    ws=/tmp/pb2-m4-west
+    rm -rf "$ws"
+    mkdir -p "$ws"
+    cp -a ${S}/. "$ws/"
+    cd "$ws"
+    west init -l manifest
     west update
     if [ -f zephyr/scripts/requirements-base.txt ]; then
         pip3 install --target ${WORKDIR}/py -r zephyr/scripts/requirements-base.txt
     fi
-    west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4 -d ${WORKDIR}/zbuild -p always
-    test -f ${WORKDIR}/zbuild/zephyr/pb2_m4.elf -o -f ${WORKDIR}/zbuild/zephyr/zephyr.elf
+    west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4 -d "$ws/zbuild" -p always
+    if [ -f "$ws/zbuild/zephyr/pb2_m4.elf" ]; then
+        elf="$ws/zbuild/zephyr/pb2_m4.elf"
+    else
+        elf="$ws/zbuild/zephyr/zephyr.elf"
+    fi
+    test -f "$elf"
+    install -m 0644 "$elf" ${WORKDIR}/pb2_m4.elf
 }
 
 do_install () {
     install -d ${D}${nonarch_base_libdir}/firmware
-    if [ -f ${WORKDIR}/zbuild/zephyr/pb2_m4.elf ]; then
-        elf=${WORKDIR}/zbuild/zephyr/pb2_m4.elf
-    else
-        elf=${WORKDIR}/zbuild/zephyr/zephyr.elf
-    fi
-    install -m 0644 "$elf" ${D}${nonarch_base_libdir}/firmware/am62-mcu-m4f0_0-fw
+    install -m 0644 ${WORKDIR}/pb2_m4.elf ${D}${nonarch_base_libdir}/firmware/am62-mcu-m4f0_0-fw
 }
 
 FILES:${PN} = "${nonarch_base_libdir}/firmware/am62-mcu-m4f0_0-fw"
