@@ -29,7 +29,7 @@ do_configure () {
     rm -rf ${S}/manifest ${S}/zephyr-m4
     mkdir -p ${S}/manifest
     cp -a ${UNPACKDIR}/zephyr-m4 ${S}/zephyr-m4
-    install -m 0644 ${UNPACKDIR}/west.yml ${S}/manifest/west.yml
+    install -m 0644 ${UNPACKDIR}/manifest/west.yml ${S}/manifest/west.yml
     test -f ${S}/third_party/erpc/LICENSE
     test -x ${ZEPHYR_SDK}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc || \
         test -x ${ZEPHYR_SDK}/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc

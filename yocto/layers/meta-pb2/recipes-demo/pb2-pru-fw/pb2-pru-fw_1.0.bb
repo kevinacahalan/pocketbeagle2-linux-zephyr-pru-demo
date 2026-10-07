@@ -8,13 +8,13 @@ DEPENDS = "ti-cgt-pru-native"
 FILESEXTRAPATHS:prepend := "${@os.path.abspath(os.path.join(os.path.dirname(d.getVar('FILE')), '..', '..', '..', '..', '..'))}/:"
 
 SRC_URI = " \
-    file://pru/Makefile;subdir=src/pru \
-    file://pru/pru0/main.c;subdir=src/pru/pru0 \
-    file://pru/pru0/AM62x_PRU0.cmd;subdir=src/pru/pru0 \
-    file://pru/pru1/main.c;subdir=src/pru/pru1 \
-    file://pru/pru1/slip_tx.asm;subdir=src/pru/pru1 \
-    file://pru/pru1/AM62x_PRU1.cmd;subdir=src/pru/pru1 \
-    file://zephyr-m4/include/pb2_shm.h;subdir=src/zephyr-m4/include \
+    file://pru/Makefile;subdir=src \
+    file://pru/pru0/main.c;subdir=src \
+    file://pru/pru0/AM62x_PRU0.cmd;subdir=src \
+    file://pru/pru1/main.c;subdir=src \
+    file://pru/pru1/slip_tx.asm;subdir=src \
+    file://pru/pru1/AM62x_PRU1.cmd;subdir=src \
+    file://zephyr-m4/include/pb2_shm.h;subdir=src \
     git://git.ti.com/git/pru-software-support-package/pru-software-support-package.git;protocol=https;nobranch=1;destsuffix=pssp;name=pssp \
 "
 SRCREV_pssp = "28107daa1d184059f67676ba49d0fcaebb0f6a96"

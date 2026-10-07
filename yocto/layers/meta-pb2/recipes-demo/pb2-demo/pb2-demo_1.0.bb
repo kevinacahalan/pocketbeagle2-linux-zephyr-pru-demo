@@ -8,16 +8,16 @@ DEPENDS = "dtc-native"
 FILESEXTRAPATHS:prepend := "${@os.path.abspath(os.path.join(os.path.dirname(d.getVar('FILE')), '..', '..', '..', '..', '..'))}/:"
 
 SRC_URI = " \
-    file://beagle-linux/linux/pb2-ipc.c;subdir=src/beagle-linux/linux \
-    file://beagle-linux/linux/pb2-spi.c;subdir=src/beagle-linux/linux \
-    file://beagle-linux/linux/pb2_erpc_linux.cpp;subdir=src/beagle-linux/linux \
-    file://beagle-linux/linux/pb2_erpc_linux.h;subdir=src/beagle-linux/linux \
-    file://beagle-linux/linux/erpc_config.h;subdir=src/beagle-linux/linux \
-    file://beagle-linux/linux/Makefile;subdir=src/beagle-linux/linux \
-    file://beagle-linux/linux/k3-am62-pocketbeagle2-spi0-hello.dtso;subdir=src/beagle-linux/linux \
-    file://beagle-linux/linux/k3-am62-pocketbeagle2-pru1-xy.dtso;subdir=src/beagle-linux/linux \
-    file://zephyr-m4/include/pb2_shm.h;subdir=src/zephyr-m4/include \
-    file://zephyr-m4/erpc/shim;subdir=src/zephyr-m4/erpc \
+    file://beagle-linux/linux/pb2-ipc.c;subdir=src \
+    file://beagle-linux/linux/pb2-spi.c;subdir=src \
+    file://beagle-linux/linux/pb2_erpc_linux.cpp;subdir=src \
+    file://beagle-linux/linux/pb2_erpc_linux.h;subdir=src \
+    file://beagle-linux/linux/erpc_config.h;subdir=src \
+    file://beagle-linux/linux/Makefile;subdir=src \
+    file://beagle-linux/linux/k3-am62-pocketbeagle2-spi0-hello.dtso;subdir=src \
+    file://beagle-linux/linux/k3-am62-pocketbeagle2-pru1-xy.dtso;subdir=src \
+    file://zephyr-m4/include/pb2_shm.h;subdir=src \
+    file://zephyr-m4/erpc/shim;subdir=src \
     git://github.com/EmbeddedRPC/erpc.git;protocol=https;nobranch=1;destsuffix=src/third_party/erpc;name=erpc \
 "
 SRCREV_erpc = "e8d5684a920e023a49cec875c04ad05ddc8521e6"
