@@ -1,6 +1,6 @@
 # PocketBeagle 2: Linux, Zephyr, and PRU
 
-Linux on the A53s calls Zephyr functions over eRPC on the existing RPMsg channel, and commands PRU0 over RPMsg. Zephyr asks PRU0 through a small DDR mailbox. PRU0 arms PRU1 in PRU shared RAM. PRU1 does not use RPMsg; it runs a cycle-counted loop and samples that arm block once per period. Linux hands Zephyr bulk chunks through a separate DDR region (`zephyr-m4/include/pb2_shm.h`). The device-manager R5 is not loaded or stopped.
+Linux on the A53s calls Zephyr functions over eRPC on the existing RPMsg channel, and commands PRU0 over RPMsg. Zephyr asks PRU0 through a small DDR mailbox. PRU0 is the transfer core: it arms PRU1 in PRU shared RAM, and it also writes a 32-bit X and a 32-bit Y there. PRU1 does not use RPMsg. It runs a cycle-counted loop, samples the arm block once per period, and when the X/Y sequence changes it shifts that pair out on a header pin. Linux hands Zephyr bulk chunks through a separate DDR region (`zephyr-m4/include/pb2_shm.h`). The device-manager R5 is not loaded or stopped.
 
 The board still runs the BeagleBoard Debian image. That tree is `beagle-linux/`, and it is the active test target. Yocto is only a slot for kas, layers, and config. Laptop builds run in containers.
 
@@ -100,6 +100,54 @@ That takes effect on the next boot. After that, `pb2-spi` writes `hello` to `/de
 
 This repository does not include logic-analyzer captures. A Saleae, or any other analyzer, can be clipped to the header pins above.
 
+## X and Y through PRU0 to PRU1
+
+PRU0 is the only RPMsg core (channel `rpmsg-raw`, port 30). Linux types `pru0 xy <x> <y>` in the linux window. That text is the RPMsg payload. Zephyr does not open its own channel to PRU0. Linux types `zephyr xy <x> <y>`, eRPC `sendXy` runs on the existing Zephyr RPMsg channel, and Zephyr publishes the same `xy <x> <y>` text in the DDR mailbox at `0x9D9FF000`. PRU0 already polls that mailbox. Both numbers are decimal and fit in 32 bits.
+
+PRU0 writes the pair into PRUSS shared RAM, not the DDR mailbox. The AM62x linker map puts 32 KiB of shared RAM at local address `0x00010000` (`PRU_SHAREDMEM`, constant register C28, length `0x8000`). C28's pointer is that address shifted right by 8, so `0x0100` names this base, and a near access covers 256 bytes. The firmware does not program C28. It uses the direct local address, which is how the arm block is already reached. The SoC address of local `0x00010000` is `0x30050000`.
+
+| Offset from local `0x00010000` | SoC address | What |
+| --- | --- | --- |
+| `0x00` | `0x30050000` | Arm block, 32 bytes. PRU0 writes it. PRU1's timing loop samples it. |
+| `0x40` | `0x30050040` | X/Y record. Still inside the first 256 bytes of shared RAM. |
+
+The record is little-endian `uint32` fields, in this order: `magic`, `seq`, `x`, `y`, `consumed`. Magic is `0x50423258` (`PB2X`). PRU0 stores `x`, then `y`, then the magic, then `seq` last. `consumed` is PRU1's. `pb2-ipc xy` prints the record once. The pru1 window prints it on each sample.
+
+PRU1 is the transmission core. When `seq` changes and the magic matches, it copies X and Y, shifts a frame out, then stores that `seq` in `consumed`. A matching `consumed` means PRU1 finished that sequence. It does not mean a scope saw the pin.
+
+The frame is SLIP (RFC 1055) carried as UART 8N1. Idle is high. Each byte is one UART character: start bit 0, eight data bits least-significant first, stop bit 1. The PRUSS core-clock mux on the image this example was exercised on is 250 MHz, and each bit is 2170 cycles, which is 115200 baud within a fraction of a percent. One iteration of PRU1's timing loop grows by the length of the frame when a new sequence is sent.
+
+Bytes, in order, when none of the payload bytes is `0xC0` or `0xDB`:
+
+| Byte | Value |
+| --- | --- |
+| 0 | `0xC0` SLIP END |
+| 1 | X bits 7:0 |
+| 2 | X bits 15:8 |
+| 3 | X bits 23:16 |
+| 4 | X bits 31:24 |
+| 5 | Y bits 7:0 |
+| 6 | Y bits 15:8 |
+| 7 | Y bits 23:16 |
+| 8 | Y bits 31:24 |
+| 9 | XOR of bytes 1 through 8 |
+| 10 | `0xC0` SLIP END |
+
+If a payload byte (X, Y, or the XOR) is `0xC0`, those two bytes on the wire are `0xDB 0xDC`. If it is `0xDB`, they are `0xDB 0xDD`. The END bytes are not escaped.
+
+The pin is header P1.20, ball Y24, pad offset `0x00cc`, mux mode 2 (`PR0_PRU1_GPO5`), which is PRU1 R30 bit 5. It is not a Linux SPI0 pin (P2.29, P2.25, P2.27, P2.31) and not a Zephyr SPI2 pin (P1.08, P1.12, P1.10, P1.06). The expansion table shows one ball on P1.20.
+
+Source: `beagle-linux/linux/k3-am62-pocketbeagle2-pru1-xy.dtso`. `./beagle-linux/scripts/build.sh linux` builds the blob with `dtc` next to the SPI overlay. Copy it to `/boot/firmware/overlays/` and add it to `fdtoverlays` on the default extlinux label, the same way as the SPI overlay. The PRUSS node takes that pin group. The pad does not change until the next boot. This repository does not include a capture of P1.20.
+
+From the linux window:
+
+```
+pru0 xy 1 2
+zephyr xy 3 4
+```
+
+PRU0's RPMsg reply for the first of those is `pru0: xy seq 1 x 1 y 2`. After PRU1 finishes the frame, `pb2-ipc xy` shows `consumed` equal to that `seq`.
+
 ## Run
 
 Copy the build products to the board over SSH. `PB2_SSH` is `user@address` for your board. `pb2-tmux.sh` expects this layout under `/home/user/pb2-demo/` (use the account's home, not this placeholder):
@@ -124,7 +172,7 @@ On the board, from that directory:
 ./pb2-tmux.sh
 ```
 
-The script needs sudo to stop and start the M4 and the two PRUs, insert `pru_rproc.ko` when the running kernel is missing `pru_rproc_kick`, and grant `pb2-ipc` `CAP_SYS_RAWIO` so it can open `/dev/mem`. It leaves `78000000.r5f` alone. It then opens tmux session `pb2` with windows `linux`, `zephyr`, `pru0`, and `pru1`. Attach with `tmux attach -t pb2`. From the linux window: `zephyr say <text>`, `zephyr arm <period> <count>`, `zephyr chunk <text>`, or `pru0 <text>`. `zephyr arm` asks PRU0, through the mailbox, to arm PRU1. `pru0 arm <period> <count>` does that directly. `chunk` writes the bulk region and then calls Zephyr to check it.
+The script needs sudo to stop and start the M4 and the two PRUs, insert `pru_rproc.ko` when the running kernel is missing `pru_rproc_kick`, and grant `pb2-ipc` `CAP_SYS_RAWIO` so it can open `/dev/mem`. It leaves `78000000.r5f` alone. It then opens tmux session `pb2` with windows `linux`, `zephyr`, `pru0`, and `pru1`. Attach with `tmux attach -t pb2`. From the linux window: `zephyr say <text>`, `zephyr arm <period> <count>`, `zephyr chunk <text>`, `zephyr xy <x> <y>`, `pru0 xy <x> <y>`, or `pru0 <text>`. `zephyr arm` asks PRU0, through the mailbox, to arm PRU1. `pru0 arm <period> <count>` does that directly. `chunk` writes the bulk region and then calls Zephyr to check it. `xy` hands PRU0 the pair described above.
 
 The linux window sends one scripted pass on startup: ping PRU0, `say hello from linux`, `arm 100000 30`, `chunk bulk-hello`, then `pru0 arm 250000 20`.
 

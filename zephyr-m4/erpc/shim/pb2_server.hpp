@@ -47,6 +47,9 @@ private:
 
     /*! @brief Server shim for takeChunk of Pb2Service interface. */
     erpc_status_t takeChunk_shim(erpc::Codec * codec, erpc::MessageBufferFactory *messageFactory, erpc::Transport * transport, uint32_t sequence);
+
+    /*! @brief Server shim for sendXy of Pb2Service interface. */
+    erpc_status_t sendXy_shim(erpc::Codec * codec, erpc::MessageBufferFactory *messageFactory, erpc::Transport * transport, uint32_t sequence);
 };
 
 } // erpcShim

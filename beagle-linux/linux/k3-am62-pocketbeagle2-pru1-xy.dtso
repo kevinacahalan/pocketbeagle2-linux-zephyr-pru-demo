@@ -1,0 +1,23 @@
+// PocketBeagle 2 PRU1 X/Y transmit pin.
+//
+// PRU1 bit-bangs UART 8N1 on R30 bit 5. Mux mode 2 is PR0_PRU1_GPO5.
+// This pin is not a Linux SPI0 or Zephyr SPI2 ball.
+//
+//   signal  header  ball  pad offset
+//   TX      P1.20   Y24   0x00cc
+
+/dts-v1/;
+/plugin/;
+
+&main_pmx0 {
+	pb2_pru1_xy_pins: pb2-pru1-xy-pins {
+		pinctrl-single,pins = <
+			0x00cc 0x10002	/* P1.20 Y24 PR0_PRU1_GPO5 output */
+		>;
+	};
+};
+
+&pruss {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pb2_pru1_xy_pins>;
+};

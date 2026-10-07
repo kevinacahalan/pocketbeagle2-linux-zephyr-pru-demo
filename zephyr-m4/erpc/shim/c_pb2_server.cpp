@@ -44,6 +44,14 @@ class Pb2Service_server: public Pb2Service_interface
 
             return result;
         }
+
+        int32_t sendXy(uint32_t x, uint32_t y)
+        {
+            int32_t result;
+            result = ::sendXy(x, y);
+
+            return result;
+        }
 };
 
 ERPC_MANUALLY_CONSTRUCTED_STATIC(Pb2Service_service, s_Pb2Service_service);

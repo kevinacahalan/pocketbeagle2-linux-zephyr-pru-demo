@@ -66,6 +66,12 @@ erpc_status_t Pb2Service_service::handleInvocation(uint32_t methodId, uint32_t s
             break;
         }
 
+        case Pb2Service_interface::m_sendXyId:
+        {
+            erpcStatus = sendXy_shim(codec, messageFactory, transport, sequence);
+            break;
+        }
+
         default:
         {
             erpcStatus = kErpcStatus_InvalidArgument;
@@ -233,6 +239,41 @@ erpc_status_t Pb2Service_service::takeChunk_shim(Codec * codec, MessageBufferFac
 
         codec->write(result);
 
+        err = codec->getStatus();
+    }
+
+    return err;
+}
+
+erpc_status_t Pb2Service_service::sendXy_shim(Codec * codec, MessageBufferFactory *messageFactory, Transport * transport, uint32_t sequence)
+{
+    erpc_status_t err = kErpcStatus_Success;
+
+    uint32_t x;
+    uint32_t y;
+    int32_t result;
+
+    codec->read(x);
+    codec->read(y);
+
+    err = codec->getStatus();
+    if (err == kErpcStatus_Success)
+    {
+#if ERPC_NESTED_CALLS_DETECTION
+        nestingDetection = true;
+#endif
+        result = m_handler->sendXy(x, y);
+#if ERPC_NESTED_CALLS_DETECTION
+        nestingDetection = false;
+#endif
+        err = messageFactory->prepareServerBufferForSend(codec->getBufferRef(), transport->reserveHeaderSize());
+    }
+
+    if (err == kErpcStatus_Success)
+    {
+        codec->reset(transport->reserveHeaderSize());
+        codec->startWriteMessage(message_type_t::kReplyMessage, Pb2Service_interface::m_serviceId, Pb2Service_interface::m_sendXyId, sequence);
+        codec->write(result);
         err = codec->getStatus();
     }
 

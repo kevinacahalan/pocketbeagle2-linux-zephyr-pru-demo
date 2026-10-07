@@ -238,3 +238,53 @@ uint32_t Pb2Service_client::takeChunk(uint32_t seq, uint32_t length, uint32_t cr
 
     return result;
 }
+
+int32_t Pb2Service_client::sendXy(uint32_t x, uint32_t y)
+{
+    erpc_status_t err = kErpcStatus_Success;
+
+    int32_t result;
+
+#if ERPC_PRE_POST_ACTION
+    pre_post_action_cb preCB = m_clientManager->getPreCB();
+    if (preCB)
+    {
+        preCB();
+    }
+#endif
+
+    RequestContext request = m_clientManager->createRequest(false);
+    Codec * codec = request.getCodec();
+
+    if (codec == NULL)
+    {
+        err = kErpcStatus_MemoryError;
+    }
+    else
+    {
+        codec->startWriteMessage(message_type_t::kInvocationMessage, m_serviceId, m_sendXyId, request.getSequence());
+        codec->write(x);
+        codec->write(y);
+        m_clientManager->performRequest(request);
+        codec->read(result);
+        err = codec->getStatus();
+    }
+
+    m_clientManager->releaseRequest(request);
+    m_clientManager->callErrorHandler(err, m_sendXyId);
+
+#if ERPC_PRE_POST_ACTION
+    pre_post_action_cb postCB = m_clientManager->getPostCB();
+    if (postCB)
+    {
+        postCB();
+    }
+#endif
+
+    if (err != kErpcStatus_Success)
+    {
+        result = -1;
+    }
+
+    return result;
+}

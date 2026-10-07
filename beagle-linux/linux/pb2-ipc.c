@@ -23,6 +23,9 @@
  * pb2-ipc watch
  *   Prints PRU1's shared-RAM status. PRU1 has no RPMsg endpoint.
  *
+ * pb2-ipc xy
+ *   Prints the shared-RAM X/Y record once and exits.
+ *
  * pb2-ipc linux <dir>
  *   Sends the hello-world script, then reads commands.
  */
@@ -167,6 +170,14 @@ static int watch_main(void)
 
 		printf("pru1 tick=%u done=%u applied_seq=%u period=%u arm_seq=%u\n",
 		       tick, done, seq, period, arm_seq);
+		{
+			volatile struct pb2_xy *xy =
+				(volatile struct pb2_xy *)((uintptr_t)arm +
+							   (PB2_XY_CPU - PB2_ARM_CPU));
+
+			printf("pru1 xy magic=%08x seq=%u x=%u y=%u consumed=%u\n",
+			       xy->magic, xy->seq, xy->x, xy->y, xy->consumed);
+		}
 		if (samples > 0 && tick != last_tick) {
 			printf("pru1 tick moved %u -> %u\n", last_tick, tick);
 		}
@@ -253,7 +264,24 @@ static int erpc_line(const char *line)
 	if (!strncmp(line, "chunk ", 6)) {
 		return do_chunk(line + 6);
 	}
-	printf("zephyr commands: say <text> | arm <period> <count> | chunk <text>\n");
+	if (!strncmp(line, "xy ", 3)) {
+		unsigned x = 0, y = 0;
+
+		if (sscanf(line + 3, "%u %u", &x, &y) != 2) {
+			printf("zephyr xy wants <x> <y>\n");
+			fflush(stdout);
+			return -1;
+		}
+		if (pb2_erpc_xy(x, y)) {
+			printf("zephyr xy failed\n");
+			fflush(stdout);
+			return -1;
+		}
+		printf("zephyr xy %u %u -> ok\n", x, y);
+		fflush(stdout);
+		return 0;
+	}
+	printf("zephyr commands: say <text> | arm <period> <count> | chunk <text> | xy <x> <y>\n");
 	fflush(stdout);
 	return -1;
 }
@@ -345,6 +373,20 @@ static int send_to(int fd, const char *who, const char *msg)
 	return 0;
 }
 
+static int xy_main(void)
+{
+	volatile struct pb2_arm *base = map_phys(PB2_ARM_CPU, 4096);
+	volatile struct pb2_xy *xy;
+
+	if (!base) {
+		return 1;
+	}
+	xy = (volatile struct pb2_xy *)((uintptr_t)base + (PB2_XY_CPU - PB2_ARM_CPU));
+	printf("xy cpu 0x%x magic=%08x seq=%u x=%u y=%u consumed=%u\n",
+	       PB2_XY_CPU, xy->magic, xy->seq, xy->x, xy->y, xy->consumed);
+	return 0;
+}
+
 static int linux_main(int argc, char **argv)
 {
 	const char *dir = argv[2];
@@ -383,7 +425,7 @@ static int linux_main(int argc, char **argv)
 		return 1;
 	}
 
-	printf("linux window ready. commands: zephyr say|arm|chunk ... | pru0 <text>\n");
+	printf("linux window ready. commands: zephyr say|arm|chunk|xy ... | pru0 <text>\n");
 	fflush(stdout);
 
 	while (fgets(input, sizeof(input), stdin)) {
@@ -398,7 +440,7 @@ static int linux_main(int argc, char **argv)
 		}
 		msg = strchr(input, ' ');
 		if (!msg) {
-			printf("use zephyr say|arm|chunk ... or pru0 <text>\n");
+			printf("use zephyr say|arm|chunk|xy ... or pru0 <text>\n");
 			fflush(stdout);
 			continue;
 		}
@@ -410,7 +452,7 @@ static int linux_main(int argc, char **argv)
 		} else if (!strcmp(input, "quit")) {
 			break;
 		} else {
-			printf("use zephyr say|arm|chunk ... or pru0 <text>\n");
+			printf("use zephyr say|arm|chunk|xy ... or pru0 <text>\n");
 			fflush(stdout);
 		}
 	}
@@ -420,7 +462,7 @@ static int linux_main(int argc, char **argv)
 int main(int argc, char **argv)
 {
 	if (argc < 2) {
-		fprintf(stderr, "usage: %s peer|erpc|watch|linux ...\n", argv[0]);
+		fprintf(stderr, "usage: %s peer|erpc|watch|xy|linux ...\n", argv[0]);
 		return 2;
 	}
 	if (!strcmp(argv[1], "peer")) {
@@ -431,6 +473,9 @@ int main(int argc, char **argv)
 	}
 	if (!strcmp(argv[1], "watch")) {
 		return watch_main();
+	}
+	if (!strcmp(argv[1], "xy")) {
+		return xy_main();
 	}
 	if (!strcmp(argv[1], "linux")) {
 		return linux_main(argc, argv);

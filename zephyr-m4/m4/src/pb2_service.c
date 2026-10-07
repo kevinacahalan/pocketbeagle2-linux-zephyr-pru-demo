@@ -50,6 +50,16 @@ int32_t armPru1(uint32_t period_cycles, uint32_t periods)
 	return 0;
 }
 
+int32_t sendXy(uint32_t x, uint32_t y)
+{
+	char cmd[56];
+
+	snprintf(cmd, sizeof(cmd), "xy %u %u", x, y);
+	pb2_shm_publish(cmd);
+	LOG_INF("erpc xy x %u y %u", x, y);
+	return 0;
+}
+
 uint32_t takeChunk(uint32_t seq, uint32_t length, uint32_t crc)
 {
 	uint32_t got;

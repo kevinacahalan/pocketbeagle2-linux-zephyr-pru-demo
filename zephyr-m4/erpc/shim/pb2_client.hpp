@@ -28,6 +28,8 @@ class Pb2Service_client: public Pb2Service_interface
 
         virtual uint32_t takeChunk(uint32_t seq, uint32_t length, uint32_t crc);
 
+        virtual int32_t sendXy(uint32_t x, uint32_t y);
+
     protected:
         erpc::ClientManager *m_clientManager;
 };

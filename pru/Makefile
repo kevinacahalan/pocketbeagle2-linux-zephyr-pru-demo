@@ -11,7 +11,7 @@ endif
 ROOT := $(abspath ..)
 BUILD := build
 CFLAGS := -v3 -O2 --display_error_number --endian=little --hardware_mac=on
-LFLAGS := --reread_libs --warn_sections --stack_size=0x100 --heap_size=0x100
+LFLAGS := --reread_libs --warn_sections --stack_size=0x200 --heap_size=0x100
 INCLUDE := --include_path=$(PRU_CGT)/include \
 	--include_path=$(PSSP)/include \
 	--include_path=$(PSSP)/include/am62x \

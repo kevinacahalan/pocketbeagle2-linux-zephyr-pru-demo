@@ -44,6 +44,14 @@ uint32_t takeChunk(uint32_t seq, uint32_t length, uint32_t crc)
     return result;
 }
 
+int32_t sendXy(uint32_t x, uint32_t y)
+{
+    int32_t result;
+    result = s_Pb2Service_client->sendXy(x, y);
+
+    return result;
+}
+
 void initPb2Service_client(erpc_client_t client)
 {
 #if ERPC_ALLOCATION_POLICY == ERPC_ALLOCATION_POLICY_DYNAMIC

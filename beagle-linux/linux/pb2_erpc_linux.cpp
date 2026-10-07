@@ -108,6 +108,13 @@ extern "C" int pb2_erpc_arm(uint32_t period, uint32_t count)
 	return rc == 0 ? 0 : -1;
 }
 
+extern "C" int pb2_erpc_xy(uint32_t x, uint32_t y)
+{
+	int32_t rc = sendXy(x, y);
+
+	return rc == 0 ? 0 : -1;
+}
+
 extern "C" int pb2_erpc_take(uint32_t seq, uint32_t length, uint32_t crc, uint32_t *got)
 {
 	uint32_t rc = takeChunk(seq, length, crc);
