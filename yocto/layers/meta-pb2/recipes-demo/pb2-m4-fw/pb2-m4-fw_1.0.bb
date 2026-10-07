@@ -46,7 +46,6 @@ do_compile () {
     export GIT_CONFIG_COUNT=1
     export GIT_CONFIG_KEY_0=safe.directory
     export GIT_CONFIG_VALUE_0='*'
-    # west update clones Zephyr and its modules into this work directory.
     pip3 install --target ${WORKDIR}/py west
     export PYTHONPATH="${WORKDIR}/py${PYTHONPATH:+:$PYTHONPATH}"
     export PATH="${WORKDIR}/py/bin:${PATH}"
