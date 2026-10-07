@@ -1,0 +1,74 @@
+#include <zephyr/dt-bindings/pinctrl/ti-k3-pinctrl.h>
+
+/*
+ * Carve the bulk chunk region and the small PRU mailbox out of M4 DDR.
+ * ddr1 starts at 0x9cc01000. Bulk is 64 KiB at 0x9d9ef000.
+ * Mailbox stays at 0x9d9ff000, matching PB2_SHM_ADDR.
+ * Original ddr1 size 0xdff000 ended at 0x9da00000.
+ */
+
+&ddr1 {
+	reg = <0x9cc01000 0xdee000>;
+};
+
+/ {
+	pb2_bulk: memory@9d9ef000 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x9d9ef000 0x10000>;
+		zephyr,memory-region = "PB2_BULK";
+	};
+
+	pru_shm: memory@9d9ff000 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x9d9ff000 0x1000>;
+		zephyr,memory-region = "PRU_SHM";
+	};
+
+	/*
+	 * Main padcfg at 0xf4000. One pin per group: the K3 pinctrl helper
+	 * applies only the first two pinmux cells of each group.
+	 * 0x200000 is the pad disable bit used by the Debian kernel's
+	 * PIN_DISABLE, OR mux mode 7, so a shorted partner ball stays off.
+	 */
+	main_pmx0: pinctrl@f4000 {
+		compatible = "ti,k3-pinctrl";
+		reg = <0xf4000 0x2ac>;
+		status = "okay";
+
+		pb2_spi2_clk: pb2-spi2-clk {
+			/* P1.08 A20 SPI2_CLK, mode 1 */
+			pinmux = <K3_PINMUX(0x01b0, PIN_OUTPUT, MUX_MODE_1)>;
+		};
+		pb2_spi2_mosi: pb2-spi2-mosi {
+			/* P1.12 A19 SPI2_D1 MOSI, mode 1 */
+			pinmux = <K3_PINMUX(0x0198, PIN_OUTPUT, MUX_MODE_1)>;
+		};
+		pb2_spi2_miso: pb2-spi2-miso {
+			/* P1.10 B19 SPI2_D0 MISO, mode 1 */
+			pinmux = <K3_PINMUX(0x0194, PIN_INPUT, MUX_MODE_1)>;
+		};
+		pb2_spi2_cs: pb2-spi2-cs {
+			/* P1.06 E19 SPI2_CS0, mode 1 */
+			pinmux = <K3_PINMUX(0x01ac, PIN_OUTPUT, MUX_MODE_1)>;
+		};
+		pb2_spi2_off_p1_06a: pb2-spi2-off-p1-06a {
+			/* P1.06A AD18, shorted to P1.06 */
+			pinmux = <K3_PINMUX(0x0140, 0x200000, MUX_MODE_7)>;
+		};
+		pb2_spi2_off_p1_10a: pb2-spi2-off-p1-10a {
+			/* P1.10 A18, shorted to P1.10 ball B19 */
+			pinmux = <K3_PINMUX(0x01f0, 0x200000, MUX_MODE_7)>;
+		};
+		pb2_spi2_off_p1_12a: pb2-spi2-off-p1-12a {
+			/* P1.12A AE18, shorted to P1.12 */
+			pinmux = <K3_PINMUX(0x013c, 0x200000, MUX_MODE_7)>;
+		};
+	};
+};
+
+&main_spi2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pb2_spi2_clk &pb2_spi2_mosi &pb2_spi2_miso &pb2_spi2_cs
+		     &pb2_spi2_off_p1_06a &pb2_spi2_off_p1_10a &pb2_spi2_off_p1_12a>;
+	status = "okay";
+};

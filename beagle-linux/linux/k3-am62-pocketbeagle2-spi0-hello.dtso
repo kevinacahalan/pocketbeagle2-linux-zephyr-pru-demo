@@ -1,0 +1,42 @@
+// PocketBeagle 2 Linux SPI0 hello. Apply on the flashed Debian image.
+//
+// Controller: main_spi0 at 0x20100000. Mux mode 0 is SPI, not a PRU function.
+// D1 is MOSI and D0 is MISO, which is the kernel default (no
+// ti,pindir-d0-out-d1-in). Shorted partner balls are held in GPIO mode 7
+// with the input buffer off so they do not fight the header pin.
+//
+//   signal  header  ball  pad offset
+//   CLK     P2.29   A14   0x01bc     (not P2.29A M22)
+//   MOSI    P2.25   B14   0x01c4     SPI0_D1
+//   MISO    P2.27   B13   0x01c0     SPI0_D0
+//   CS0     P2.31   A13   0x01b4     (not P2.31A AA18)
+
+/dts-v1/;
+/plugin/;
+
+&main_pmx0 {
+	pb2_spi0_hello_pins: pb2-spi0-hello-pins {
+		pinctrl-single,pins = <
+			0x01bc 0x10000	/* P2.29 A14 SPI0_CLK output */
+			0x01c4 0x10000	/* P2.25 B14 SPI0_D1 MOSI output */
+			0x01c0 0x54000	/* P2.27 B13 SPI0_D0 MISO input */
+			0x01b4 0x10000	/* P2.31 A13 SPI0_CS0 output */
+			0x00a4 0x200007	/* P2.29A M22 disabled */
+			0x0170 0x200007	/* P2.31A AA18 disabled */
+		>;
+	};
+};
+
+&main_spi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pb2_spi0_hello_pins>;
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	spidev@0 {
+		compatible = "rohm,dh2228fv";
+		reg = <0>;
+		spi-max-frequency = <1000000>;
+	};
+};

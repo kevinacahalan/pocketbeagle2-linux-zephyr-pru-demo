@@ -1,0 +1,11 @@
+/*
+ * Linux calls these Zephyr functions over the existing RPMsg channel.
+ * Bulk bytes stay in the DDR region from pb2_shm.h. They are not eRPC payload.
+ */
+program pb2
+
+interface Pb2Service {
+    say(in string msg) -> string
+    armPru1(in uint32 periodCycles, in uint32 periods) -> int32
+    takeChunk(in uint32 seq, in uint32 length, in uint32 crc) -> uint32
+}

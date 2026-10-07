@@ -1,0 +1,38 @@
+# Checked in
+#   README.md, LAYOUT.md, .gitignore
+#   manifest/                         west manifest (workspace topdir is the repo root)
+#   beagle-linux/                     Debian userspace, patched pru_rproc, scripts
+#   zephyr-m4/                        M4 app and shared mailbox header
+#   pru/                              PRU firmware sources (not pru/build/)
+#   yocto/                            kas, layers, and config only
+#
+# Temporary. These stay on disk and stay untracked.
+
+# West workspace created by `west init -l manifest` from the repo root.
+.west/
+zephyr/
+modules/
+bootloader/
+tools/
+build/
+
+# Fetched tools and sources. Not vendored.
+third_party/
+.cache/
+
+# Build products.
+pru/build/
+linux/pb2-ipc
+beagle-linux/linux/pb2-ipc
+beagle-linux/linux/pb2-spi
+beagle-linux/linux/*.dtbo
+*.ko
+*.o
+*.object
+*.out
+*.map
+*.mod
+*.mod.c
+.*.cmd
+Module.symvers
+modules.order
