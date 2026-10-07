@@ -24,7 +24,7 @@ Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`
    ./beagle-linux/scripts/build.sh pru
    ```
 
-   PRU0, the transfer core, is `pru/pru0/` (`main.c` and `AM62x_PRU0.cmd`). PRU1, the SLIP frame, is `pru/pru1/` (`main.c` and `AM62x_PRU1.cmd`). Output: `pru/build/am62x-pru0-fw` and `pru/build/am62x-pru1-fw`.
+   PRU0, the transfer core, is `pru/pru0/` (`main.c` and `AM62x_PRU0.cmd`). PRU1, the SLIP frame, is `pru/pru1/`: the sample loop is `main.c`, the pin shifting is `slip_tx.asm`, and the linker script is `AM62x_PRU1.cmd`. Output: `pru/build/am62x-pru0-fw` and `pru/build/am62x-pru1-fw`.
 
 3. Zephyr on the M4, in `ghcr.io/zephyrproject-rtos/ci:latest` with the SDK at `/opt/toolchains/zephyr-sdk-1.0.1`. The container runs `west init -l manifest` from the repo root when `.west/` is missing, then `west update` and `west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4`. Do not run `west init -l .` from the repo root.
 
@@ -171,36 +171,86 @@ The linux window still sends a startup script before it reads commands: ping PRU
 
 ## What a passing run looks like
 
-These are the program lines from the board. They are not a scope capture.
+These are `tmux capture-pane` lines from one run of the current images. Prompts are omitted. The P1.20 overlay was not installed, and the wire was not scoped. On an earlier SPI check, `pb2-spi` wrote 5 bytes on `/dev/spidev0.0` and the Zephyr mailbox read `spi hello ok`. The Saleae was not connected.
 
-Linux sent `pru0 xy 17 29` on PRU0's RPMsg channel. PRU0 replied:
-
-```
-pru0: xy seq 1 x 17 y 29
-```
-
-`pb2-ipc xy` printed the shared record:
+Linux:
 
 ```
-xy cpu 0x30050040 magic=50423258 seq=1 x=17 y=29 consumed=1
+linux -> pru0: xy 17 29
+zephyr xy 41 83
+linux -> zephyr: xy 41 83
+pru0 xy 100 7
+linux -> pru0: xy 100 7
+zephyr xy 2 9
+linux -> zephyr: xy 2 9
+pru0 xy 8 13
+linux -> pru0: xy 8 13
+zephyr xy 4 6
+linux -> zephyr: xy 4 6
+pru0 xy 15 16
+linux -> pru0: xy 15 16
+zephyr xy 20 21
+linux -> zephyr: xy 20 21
+pru0 xy 3 11
+linux -> pru0: xy 3 11
+zephyr xy 12 18
+linux -> zephyr: xy 12 18
 ```
 
-Zephyr `sendXy(41, 83)` ran over eRPC. The client printed:
+Zephyr:
 
 ```
 zephyr -> xy 41 83
 zephyr xy 41 83 -> ok
+zephyr -> xy 2 9
+zephyr xy 2 9 -> ok
+zephyr -> xy 4 6
+zephyr xy 4 6 -> ok
+zephyr -> xy 20 21
+zephyr xy 20 21 -> ok
+zephyr -> xy 12 18
+zephyr xy 12 18 -> ok
 ```
 
-The same record then printed:
+PRU0:
 
 ```
-xy cpu 0x30050040 magic=50423258 seq=2 x=41 y=83 consumed=2
+pru0 -> xy 17 29
+pru0 <- pru0: xy seq 2 x 17 y 29
+pru0 <- pru0: shm 4 xy 41 83
+pru0 -> xy 100 7
+pru0 <- pru0: xy seq 4 x 100 y 7
+pru0 <- pru0: shm 5 xy 2 9
+pru0 -> xy 8 13
+pru0 <- pru0: xy seq 6 x 8 y 13
+pru0 <- pru0: shm 6 xy 4 6
+pru0 -> xy 15 16
+pru0 <- pru0: xy seq 8 x 15 y 16
+pru0 <- pru0: shm 7 xy 20 21
+pru0 -> xy 3 11
+pru0 <- pru0: xy seq 10 x 3 y 11
+pru0 <- pru0: shm 8 xy 12 18
 ```
 
-Magic `0x50423258` is the record at `0x30050040`. `consumed` matched `seq` both times, so PRU1 had finished shifting that sequence. The frame is SLIP on header P1.20. The P1.20 overlay was not installed, and the wire was not scoped.
+PRU1, later in the same run. `consumed` matches `seq`:
 
-On SPI, `pb2-spi` wrote 5 bytes on `/dev/spidev0.0`. The Zephyr mailbox read `spi hello ok`. The Saleae was not connected.
+```
+pru1 tick=9385 done=20 applied_seq=2 period=250000 arm_seq=2
+pru1 xy magic=50423258 seq=7 x=4 y=6 consumed=7
+pru1 tick moved 9187 -> 9385
+pru1 tick=9584 done=20 applied_seq=2 period=250000 arm_seq=2
+pru1 xy magic=50423258 seq=8 x=15 y=16 consumed=8
+pru1 tick moved 9385 -> 9584
+pru1 tick=9783 done=20 applied_seq=2 period=250000 arm_seq=2
+pru1 xy magic=50423258 seq=8 x=15 y=16 consumed=8
+pru1 tick moved 9584 -> 9783
+pru1 tick=9982 done=20 applied_seq=2 period=250000 arm_seq=2
+pru1 xy magic=50423258 seq=9 x=20 y=21 consumed=9
+pru1 tick moved 9783 -> 9982
+pru1 tick=10182 done=20 applied_seq=2 period=250000 arm_seq=2
+pru1 xy magic=50423258 seq=9 x=20 y=21 consumed=9
+pru1 tick moved 9982 -> 10182
+```
 
 ## Checked in and temporary
 

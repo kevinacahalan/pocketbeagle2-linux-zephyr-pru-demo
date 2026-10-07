@@ -28,11 +28,12 @@ $(BUILD)/am62x-pru0-fw: pru0/main.c pru0/AM62x_PRU0.cmd
 		EXDIR=$(PSSP)/examples/am62x/PRU_RPMsg_Echo_Interrupt0 \
 		EXTRA_LIBS=--library=$(PSSP)/lib/rpmsg_lib.lib
 
-$(BUILD)/am62x-pru1-fw: pru1/main.c pru1/AM62x_PRU1.cmd
+$(BUILD)/am62x-pru1-fw: pru1/main.c pru1/slip_tx.asm pru1/AM62x_PRU1.cmd
 	$(MAKE) core CORE=1 SRC=pru1/main.c OUT=$@ \
 		LINK=pru1/AM62x_PRU1.cmd \
 		EXDIR=$(PSSP)/examples/am62x/PRU_RPMsg_Echo_Interrupt1 \
-		EXTRA_LIBS=
+		EXTRA_LIBS= \
+		ASM=pru1/slip_tx.asm
 
 core:
 	mkdir -p $(BUILD)/core$(CORE)
@@ -40,8 +41,11 @@ core:
 		--include_path=$(EXDIR) $(CFLAGS) -DPRU_CORE=$(CORE) \
 		--obj_directory=$(BUILD)/core$(CORE) \
 		-fe $(BUILD)/core$(CORE)/main.object $(SRC)
+	$(if $(ASM),$(PRU_CGT)/bin/clpru $(CFLAGS) \
+		-fe $(BUILD)/core$(CORE)/slip_tx.object $(ASM),)
 	$(PRU_CGT)/bin/clpru $(CFLAGS) -z -i$(PRU_CGT)/lib -i$(PRU_CGT)/include \
 		$(LFLAGS) -o $(OUT) $(BUILD)/core$(CORE)/main.object \
+		$(if $(ASM),$(BUILD)/core$(CORE)/slip_tx.object,) \
 		-m$(OUT).map $(LINK) --library=libc.a $(EXTRA_LIBS)
 
 clean:

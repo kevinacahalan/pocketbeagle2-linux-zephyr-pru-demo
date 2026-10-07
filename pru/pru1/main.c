@@ -1,14 +1,17 @@
 /*
  * PRU1 firmware. This core sends the SLIP frame.
  *
- * It reads the X/Y record PRU0 published in PRUSS shared RAM and shifts it
- * out as UART 8N1 on R30 bit 5. It does not use RPMsg. Its loop period is a
- * cycle delay latched at the start of each iteration, not one step per message.
+ * It reads the X/Y record PRU0 published in PRUSS shared RAM. The SLIP frame
+ * and the UART bit timing live in slip_tx.asm. This file is the sample loop.
+ * It does not use RPMsg. Its loop period is a cycle delay latched at the
+ * start of each iteration, not one step per message.
  */
 
 #include <stdint.h>
 #include "pb2_shm.h"
 #include <rsc_types.h>
+
+extern void transmit_xy(uint32_t x, uint32_t y);
 
 struct pb2_empty_rsc {
 	uint32_t ver;
@@ -27,66 +30,6 @@ static void delay_cycles(uint32_t cycles)
 	while (cycles >= 1000u) {
 		__delay_cycles(1000);
 		cycles -= 1000u;
-	}
-}
-
-static void uart_tx_byte(uint8_t byte)
-{
-	uint32_t bit;
-
-	__R30 &= ~(1u << PB2_XY_TX_BIT);
-	__delay_cycles(PB2_UART_BIT_CYCLES);
-	for (bit = 0; bit < 8u; bit++) {
-		if (byte & 1u) {
-			__R30 |= (1u << PB2_XY_TX_BIT);
-		} else {
-			__R30 &= ~(1u << PB2_XY_TX_BIT);
-		}
-		byte = (uint8_t)(byte >> 1);
-		__delay_cycles(PB2_UART_BIT_CYCLES);
-	}
-	__R30 |= (1u << PB2_XY_TX_BIT);
-	__delay_cycles(PB2_UART_BIT_CYCLES);
-}
-
-static uint16_t slip_push(uint8_t *dst, uint16_t n, uint8_t byte)
-{
-	if (byte == PB2_SLIP_END) {
-		dst[n++] = PB2_SLIP_ESC;
-		dst[n++] = PB2_SLIP_ESC_END;
-	} else if (byte == PB2_SLIP_ESC) {
-		dst[n++] = PB2_SLIP_ESC;
-		dst[n++] = PB2_SLIP_ESC_ESC;
-	} else {
-		dst[n++] = byte;
-	}
-	return n;
-}
-
-/* SLIP frame, then each byte as UART 8N1, LSB first. */
-static void transmit_xy(uint32_t x, uint32_t y)
-{
-	uint8_t raw[8];
-	uint8_t frame[22];
-	uint16_t n = 0;
-	uint16_t i;
-	uint8_t sum = 0;
-
-	for (i = 0; i < 4u; i++) {
-		raw[i] = (uint8_t)(x >> (8u * i));
-		raw[4u + i] = (uint8_t)(y >> (8u * i));
-	}
-	for (i = 0; i < 8u; i++) {
-		sum = (uint8_t)(sum ^ raw[i]);
-	}
-	frame[n++] = PB2_SLIP_END;
-	for (i = 0; i < 8u; i++) {
-		n = slip_push(frame, n, raw[i]);
-	}
-	n = slip_push(frame, n, sum);
-	frame[n++] = PB2_SLIP_END;
-	for (i = 0; i < n; i++) {
-		uart_tx_byte(frame[i]);
 	}
 }
 

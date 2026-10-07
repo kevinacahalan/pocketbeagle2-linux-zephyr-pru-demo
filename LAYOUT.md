@@ -21,7 +21,7 @@ The Debian image already on the board. This is the active test target.
 
 ## PRU — `pru/pru0/` and `pru/pru1/`
 
-`pru/pru0/` is the transfer core: its own `main.c` and `AM62x_PRU0.cmd`. `pru/pru1/` sends the SLIP frame: its own `main.c` and `AM62x_PRU1.cmd`. Images land in `pru/build/`. The TI support package is cloned to `third_party/` when building. Neither the images nor that package is committed.
+`pru/pru0/` is the transfer core: its own `main.c` and `AM62x_PRU0.cmd`. `pru/pru1/` sends the SLIP frame: `main.c` is the sample loop, `slip_tx.asm` shifts the frame onto the pin, and `AM62x_PRU1.cmd` is its linker script. Images land in `pru/build/`. The TI support package is cloned to `third_party/` when building. Neither the images nor that package is committed.
 
 ## Yocto — `yocto/`
 
