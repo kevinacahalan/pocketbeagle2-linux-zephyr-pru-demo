@@ -19,7 +19,7 @@ SRC_URI = " \
 "
 SRCREV_pssp = "28107daa1d184059f67676ba49d0fcaebb0f6a96"
 
-S = "${WORKDIR}/src"
+S = "${UNPACKDIR}/src"
 PRU_CGT = "${STAGING_DATADIR_NATIVE}/ti-cgt-pru"
 
 COMPATIBLE_MACHINE = "pocketbeagle2"
@@ -32,7 +32,7 @@ do_compile () {
     rm -rf ${S}/pru/build
     oe_runmake -C ${S}/pru \
         PRU_CGT="${PRU_CGT}" \
-        PSSP="${WORKDIR}/pssp"
+        PSSP="${UNPACKDIR}/pssp"
     test -f ${S}/pru/build/am62x-pru0-fw
     test -f ${S}/pru/build/am62x-pru1-fw
 }

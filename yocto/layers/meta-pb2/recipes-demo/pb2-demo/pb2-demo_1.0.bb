@@ -22,7 +22,7 @@ SRC_URI = " \
 "
 SRCREV_erpc = "e8d5684a920e023a49cec875c04ad05ddc8521e6"
 
-S = "${WORKDIR}/src"
+S = "${UNPACKDIR}/src"
 
 COMPATIBLE_MACHINE = "pocketbeagle2"
 

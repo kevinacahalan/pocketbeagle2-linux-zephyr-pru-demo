@@ -19,7 +19,7 @@ do_configure[noexec] = "1"
 do_compile () {
     python3 - << 'PY'
 import os, sys, tarfile, pathlib
-workdir = pathlib.Path(os.environ["WORKDIR"])
+workdir = pathlib.Path(os.environ["UNPACKDIR"])
 root = workdir / "i386-root"
 root.mkdir(exist_ok=True)
 deb = next(workdir.glob("libc6-i386_*.deb")).read_bytes()
@@ -48,11 +48,11 @@ with tarfile.open(blob, mode) as tar:
     tar.extractall(root, filter="data")
 PY
     install -d ${WORKDIR}/itmp ${WORKDIR}/cgt-prefix
-    ldso=$(find ${WORKDIR}/i386-root -path '*/lib32/ld-linux.so.2' | head -n 1)
-    libdir=$(dirname "$(find ${WORKDIR}/i386-root -path '*/lib32/libc.so.6' | head -n 1)")
-    chmod +x ${WORKDIR}/ti_cgt_pru_2.3.3_linux_installer_x86.bin
+    ldso=$(find ${UNPACKDIR}/i386-root -path '*/lib32/ld-linux.so.2' | head -n 1)
+    libdir=$(dirname "$(find ${UNPACKDIR}/i386-root -path '*/lib32/libc.so.6' | head -n 1)")
+    chmod +x ${UNPACKDIR}/ti_cgt_pru_2.3.3_linux_installer_x86.bin
     TMPDIR=${WORKDIR}/itmp "$ldso" --library-path "$libdir" \
-        ${WORKDIR}/ti_cgt_pru_2.3.3_linux_installer_x86.bin \
+        ${UNPACKDIR}/ti_cgt_pru_2.3.3_linux_installer_x86.bin \
         --mode unattended --prefix ${WORKDIR}/cgt-prefix
     test -x ${WORKDIR}/cgt-prefix/ti-cgt-pru_2.3.3/bin/clpru
 }

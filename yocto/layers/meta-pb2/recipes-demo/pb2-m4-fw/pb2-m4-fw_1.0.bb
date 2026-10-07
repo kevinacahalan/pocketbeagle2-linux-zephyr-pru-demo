@@ -18,8 +18,8 @@ SRC_URI[sdk.sha256sum] = "ca9bc0ff66fafca1dac9d592a36d953cf16d096a9d09b1c0357f02
 SRC_URI[armtc.sha256sum] = "21b85981cb5a1818d9bc53d82af80f208946ec038b982ff1907287572ed3a634"
 SRCREV_erpc = "e8d5684a920e023a49cec875c04ad05ddc8521e6"
 
-S = "${WORKDIR}/src"
-ZEPHYR_SDK = "${WORKDIR}/sdk/zephyr-sdk-1.0.1"
+S = "${UNPACKDIR}/src"
+ZEPHYR_SDK = "${UNPACKDIR}/sdk/zephyr-sdk-1.0.1"
 
 COMPATIBLE_MACHINE = "pocketbeagle2"
 PACKAGE_ARCH = "${MACHINE_ARCH}"
@@ -28,8 +28,8 @@ INSANE_SKIP:${PN} += "arch"
 do_configure () {
     rm -rf ${S}/manifest ${S}/zephyr-m4
     mkdir -p ${S}/manifest
-    cp -a ${WORKDIR}/zephyr-m4 ${S}/zephyr-m4
-    install -m 0644 ${WORKDIR}/west.yml ${S}/manifest/west.yml
+    cp -a ${UNPACKDIR}/zephyr-m4 ${S}/zephyr-m4
+    install -m 0644 ${UNPACKDIR}/west.yml ${S}/manifest/west.yml
     test -f ${S}/third_party/erpc/LICENSE
     test -x ${ZEPHYR_SDK}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc || \
         test -x ${ZEPHYR_SDK}/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc
