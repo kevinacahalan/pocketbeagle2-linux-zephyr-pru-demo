@@ -1,0 +1,17 @@
+--- a/lib/bb/fetch2/git.py
++++ b/lib/bb/fetch2/git.py
+@@ -833,8 +833,12 @@ class Git(FetchMethod):
+             cmd = "%s log --pretty=oneline -n 1 %s -- 2> /dev/null | wc -l" % (
+                 ud.basecmd, git_ref_name)
+         else:
+-            cmd =  "%s branch --contains %s --list %s 2> /dev/null | wc -l" % (
+-                ud.basecmd, git_ref_name, ud.branch)
++            # git 2.46 and later refuse `branch --contains` when HEAD is the
++            # dangling symbolic ref refs/heads/.invalid left in mirror clones.
++            # merge-base does not resolve HEAD. Print 1 when the revision is
++            # contained and 0 otherwise, matching the old wc -l check.
++            cmd = "%s merge-base --is-ancestor %s refs/heads/%s >/dev/null 2>&1; if [ $? -eq 0 ]; then echo 1; else echo 0; fi" % (
++                ud.basecmd, git_ref_name, ud.branch)
+         try:
+             output = runfetchcmd(cmd, d, quiet=True, workdir=wd)
+         except bb.fetch2.FetchError:

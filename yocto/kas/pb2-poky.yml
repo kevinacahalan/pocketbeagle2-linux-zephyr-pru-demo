@@ -32,6 +32,12 @@ repos:
   bitbake:
     path: yocto/sources/bitbake
     commit: 51fd94a67fa17650a9ff623492005972bbc7d26f
+    # Host git 2.55 rejects `git branch --contains` when HEAD is
+    # refs/heads/.invalid, which is how the Yocto git mirrors are packed.
+    patches:
+      git-contains:
+        repo: meta-pb2
+        path: patches/0001-git-fetcher-avoid-branch-contains.patch
   meta-yocto:
     path: yocto/sources/meta-yocto
     commit: 7c25b11156553145fa6b241a2d4f65d94438f804

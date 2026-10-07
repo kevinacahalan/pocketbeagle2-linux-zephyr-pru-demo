@@ -17,9 +17,10 @@ INSANE_SKIP:${PN} += "already-stripped"
 do_configure[noexec] = "1"
 
 do_compile () {
-    python3 - << 'PY'
-import os, sys, tarfile, pathlib
-workdir = pathlib.Path(os.environ["UNPACKDIR"])
+    # UNPACKDIR is a bitbake variable, not an exported environment variable.
+    python3 - "${UNPACKDIR}" << 'PY'
+import sys, tarfile, pathlib
+workdir = pathlib.Path(sys.argv[1])
 root = workdir / "i386-root"
 root.mkdir(exist_ok=True)
 deb = next(workdir.glob("libc6-i386_*.deb")).read_bytes()
