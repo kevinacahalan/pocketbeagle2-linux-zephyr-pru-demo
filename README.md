@@ -24,7 +24,7 @@ Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`
    ./beagle-linux/scripts/build.sh pru
    ```
 
-   Output: `pru/build/am62x-pru0-fw` and `pru/build/am62x-pru1-fw`.
+   PRU0, the transfer core, is `pru/pru0/` (`main.c` and `AM62x_PRU0.cmd`). PRU1, the SLIP frame, is `pru/pru1/` (`main.c` and `AM62x_PRU1.cmd`). Output: `pru/build/am62x-pru0-fw` and `pru/build/am62x-pru1-fw`.
 
 3. Zephyr on the M4, in `ghcr.io/zephyrproject-rtos/ci:latest` with the SDK at `/opt/toolchains/zephyr-sdk-1.0.1`. The container runs `west init -l manifest` from the repo root when `.west/` is missing, then `west update` and `west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4`. Do not run `west init -l .` from the repo root.
 

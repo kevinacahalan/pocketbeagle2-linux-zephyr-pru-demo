@@ -3,7 +3,7 @@
 #   manifest/                         west manifest (workspace topdir is the repo root)
 #   beagle-linux/                     Debian userspace, patched pru_rproc, scripts
 #   zephyr-m4/                        M4 app and shared mailbox header
-#   pru/                              PRU firmware sources (not pru/build/)
+#   pru/pru0/ pru/pru1/               one folder per PRU core (not pru/build/)
 #   yocto/                            kas, layers, and config only
 #
 # Temporary. These stay on disk and stay untracked.

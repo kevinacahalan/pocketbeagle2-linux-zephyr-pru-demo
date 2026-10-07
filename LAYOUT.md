@@ -19,9 +19,9 @@ The Debian image already on the board. This is the active test target.
 
 `manifest/` stays at the repo root. `west init -l manifest` from the repo root sets the workspace topdir to the parent of that directory, which is where `.west/`, `zephyr/`, `modules/`, and `build/` already live. Do not run `west init -l .` from the repo root.
 
-## PRU — `pru/`
+## PRU — `pru/pru0/` and `pru/pru1/`
 
-Firmware for both cores (`-DPRU_CORE=0` or `1`). Images land in `pru/build/`. The TI support package is cloned to `third_party/` when building. Neither is committed.
+`pru/pru0/` is the transfer core: its own `main.c` and `AM62x_PRU0.cmd`. `pru/pru1/` sends the SLIP frame: its own `main.c` and `AM62x_PRU1.cmd`. Images land in `pru/build/`. The TI support package is cloned to `third_party/` when building. Neither the images nor that package is committed.
 
 ## Yocto — `yocto/`
 
