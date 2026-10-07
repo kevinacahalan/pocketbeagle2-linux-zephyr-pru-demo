@@ -24,7 +24,8 @@ PRU_CGT = "${STAGING_DATADIR_NATIVE}/ti-cgt-pru"
 
 COMPATIBLE_MACHINE = "pocketbeagle2"
 PACKAGE_ARCH = "${MACHINE_ARCH}"
-INSANE_SKIP:${PN} += "arch"
+# clpru records the build directory in debug info. The PRU does not use that path.
+INSANE_SKIP:${PN} += "arch buildpaths"
 
 do_configure[noexec] = "1"
 

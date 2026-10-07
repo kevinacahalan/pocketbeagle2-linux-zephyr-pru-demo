@@ -23,7 +23,8 @@ ZEPHYR_SDK = "${UNPACKDIR}/sdk/zephyr-sdk-1.0.1"
 
 COMPATIBLE_MACHINE = "pocketbeagle2"
 PACKAGE_ARCH = "${MACHINE_ARCH}"
-INSANE_SKIP:${PN} += "arch"
+# The Zephyr ELF records the toolchain directory. The M4 does not use that path.
+INSANE_SKIP:${PN} += "arch buildpaths"
 
 do_configure () {
     rm -rf ${S}/manifest ${S}/zephyr-m4
