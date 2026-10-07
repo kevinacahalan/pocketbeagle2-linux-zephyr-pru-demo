@@ -45,8 +45,16 @@ if data is None:
 blob = workdir / data_name
 blob.write_bytes(data)
 mode = "r:xz" if data_name.endswith(".xz") else "r:gz"
+
+def skip_absolute(member, dest_path):
+    # Debian's /lib/ld-linux.so.2 points at /lib32/ld-linux.so.2. The data
+    # filter rejects that absolute link. The loader we run is the lib32 one.
+    if member.issym() and member.linkname.startswith("/"):
+        return None
+    return tarfile.data_filter(member, dest_path)
+
 with tarfile.open(blob, mode) as tar:
-    tar.extractall(root, filter="data")
+    tar.extractall(root, filter=skip_absolute)
 PY
     install -d ${WORKDIR}/itmp ${WORKDIR}/cgt-prefix
     ldso=$(find ${UNPACKDIR}/i386-root -path '*/lib32/ld-linux.so.2' | head -n 1)
