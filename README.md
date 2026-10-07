@@ -98,7 +98,7 @@ That takes effect on the next boot. After that, `pb2-spi` writes `hello` to `/de
 ./pb2-spi /dev/spidev0.0
 ```
 
-This repository does not include logic-analyzer captures. A Saleae, or any other analyzer, can be clipped to the header pins above.
+The software transfers ran. `pb2-spi` wrote 5 bytes on `/dev/spidev0.0`. With the M4 image running, the DDR mailbox read `spi hello ok`. The Saleae was not connected, so this repository has no logic-analyzer capture of those pins.
 
 ## X and Y through PRU0 to PRU1
 
@@ -139,14 +139,7 @@ The pin is header P1.20, ball Y24, pad offset `0x00cc`, mux mode 2 (`PR0_PRU1_GP
 
 Source: `beagle-linux/linux/k3-am62-pocketbeagle2-pru1-xy.dtso`. `./beagle-linux/scripts/build.sh linux` builds the blob with `dtc` next to the SPI overlay. Copy it to `/boot/firmware/overlays/` and add it to `fdtoverlays` on the default extlinux label, the same way as the SPI overlay. The PRUSS node takes that pin group. The pad does not change until the next boot. This repository does not include a capture of P1.20.
 
-From the linux window:
-
-```
-pru0 xy 1 2
-zephyr xy 3 4
-```
-
-PRU0's RPMsg reply for the first of those is `pru0: xy seq 1 x 1 y 2`. After PRU1 finishes the frame, `pb2-ipc xy` shows `consumed` equal to that `seq`.
+From the linux window the commands are `pru0 xy <x> <y>` and `zephyr xy <x> <y>`. PRU0's RPMsg reply has the shape `pru0: xy seq N x X y Y`. `pb2-ipc xy` prints the shared record, including `consumed`.
 
 ## Run
 
@@ -174,65 +167,40 @@ On the board, from that directory:
 
 The script needs sudo to stop and start the M4 and the two PRUs, insert `pru_rproc.ko` when the running kernel is missing `pru_rproc_kick`, and grant `pb2-ipc` `CAP_SYS_RAWIO` so it can open `/dev/mem`. It leaves `78000000.r5f` alone. It then opens tmux session `pb2` with windows `linux`, `zephyr`, `pru0`, and `pru1`. Attach with `tmux attach -t pb2`. From the linux window: `zephyr say <text>`, `zephyr arm <period> <count>`, `zephyr chunk <text>`, `zephyr xy <x> <y>`, `pru0 xy <x> <y>`, or `pru0 <text>`. `zephyr arm` asks PRU0, through the mailbox, to arm PRU1. `pru0 arm <period> <count>` does that directly. `chunk` writes the bulk region and then calls Zephyr to check it. `xy` hands PRU0 the pair described above.
 
-The linux window sends one scripted pass on startup: ping PRU0, `say hello from linux`, `arm 100000 30`, `chunk bulk-hello`, then `pru0 arm 250000 20`.
+The linux window still sends a startup script before it reads commands: ping PRU0, `say hello from linux`, `arm 100000 30`, `chunk bulk-hello`, then `pru0 arm 250000 20`. That script is not the X/Y measurement below.
 
 ## What a passing run looks like
 
-These are `tmux capture-pane` dumps from the run on the flashed Debian image. The wrapped lines are how the pane displayed the command.
+These are the program lines from the board. They are not a scope capture.
 
-linux:
-
-```
-user@board:~/pb2-demo$ /home/user/pb2-demo/pb2-ipc linux /tmp/pb2-demo
-opening /tmp/pb2-demo/zephyr.in
-opening /tmp/pb2-demo/pru0.in
-linux -> pru0: ping
-linux -> zephyr: say hello from linux
-linux -> zephyr: arm 100000 30
-linux -> zephyr: chunk bulk-hello
-linux -> pru0: arm 250000 20
-linux window ready. commands: zephyr say|arm|chunk ... | pru0 <text>
-```
-
-zephyr:
+Linux sent `pru0 xy 17 29` on PRU0's RPMsg channel. PRU0 replied:
 
 ```
-/home/user/pb2-demo/pb2-ipc erpc /dev/rpmsg2 /tmp/pb2-demo/zephyr.in
-user@board:~/pb2-demo$ /home/user/pb2-demo/pb2-ipc erpc /dev/rpmsg2 /tmp/p
-b2-demo/zephyr.in
-zephyr window ready on /dev/rpmsg2 (eRPC)
-zephyr -> say hello from linux
-zephyr <- zephyr: hello from linux
-zephyr -> arm 100000 30
-zephyr arm 100000 30 -> ok
-zephyr -> chunk bulk-hello
-zephyr chunk seq 1 len 10 crc c959d039 -> ok
+pru0: xy seq 1 x 17 y 29
 ```
 
-pru0:
+`pb2-ipc xy` printed the shared record:
 
 ```
-/home/user/pb2-demo/pb2-ipc peer pru0 /dev/rpmsg1 /tmp/pb2-demo/pru0.in
-user@board:~/pb2-demo$ /home/user/pb2-demo/pb2-ipc peer pru0 /dev/rpmsg1 /
-tmp/pb2-demo/pru0.in
-pru0 window ready on /dev/rpmsg1
-pru0 -> ping
-pru0 <- pru0: ping
-pru0 <- pru0: shm 2 arm 100000 30
-pru0 -> arm 250000 20
-pru0 <- pru0: linux arm 250000 20
+xy cpu 0x30050040 magic=50423258 seq=1 x=17 y=29 consumed=1
 ```
 
-pru1 keeps printing after the armed count finishes. The period stays `250000` and the tick keeps moving:
+Zephyr `sendXy(41, 83)` ran over eRPC. The client printed:
 
 ```
-pru1 tick=13065 done=20 applied_seq=3 period=250000 arm_seq=3
-pru1 tick moved 12865 -> 13065
-pru1 tick=13264 done=20 applied_seq=3 period=250000 arm_seq=3
-pru1 tick moved 13065 -> 13264
-pru1 tick=13464 done=20 applied_seq=3 period=250000 arm_seq=3
-pru1 tick moved 13264 -> 13464
+zephyr -> xy 41 83
+zephyr xy 41 83 -> ok
 ```
+
+The same record then printed:
+
+```
+xy cpu 0x30050040 magic=50423258 seq=2 x=41 y=83 consumed=2
+```
+
+Magic `0x50423258` is the record at `0x30050040`. `consumed` matched `seq` both times, so PRU1 had finished shifting that sequence. The frame is SLIP on header P1.20. The P1.20 overlay was not installed, and the wire was not scoped.
+
+On SPI, `pb2-spi` wrote 5 bytes on `/dev/spidev0.0`. The Zephyr mailbox read `spi hello ok`. The Saleae was not connected.
 
 ## Checked in and temporary
 
@@ -246,7 +214,7 @@ Left on disk and not committed:
 | `third_party/` | PRU software support package and EmbeddedRPC clones |
 | `.cache/` | TI CGT install and kernel headers |
 | `pru/build/` | PRU firmware images |
-| `linux/pb2-ipc`, `beagle-linux/linux/pb2-ipc` | userspace binary |
+| `beagle-linux/linux/pb2-ipc`, `beagle-linux/linux/pb2-spi` | userspace binaries |
 | `*.ko` | kernel modules, including patched `pru_rproc` |
 
 ## Reach the board

@@ -6,10 +6,10 @@ Four areas. The root keeps this note, `README.md`, `.gitignore`, and `manifest/`
 
 The Debian image already on the board. This is the active test target.
 
-- `linux/` — userspace IPC (`pb2-ipc`)
-- `kernel/pru_rproc/` — patched `pru_rproc` with virtio kick
-- `scripts/build.sh` — container builds
-- `scripts/pb2-tmux.sh` — board demo
+- `beagle-linux/linux/` — userspace IPC (`pb2-ipc`, `pb2-spi`)
+- `beagle-linux/kernel/pru_rproc/` — patched `pru_rproc` with virtio kick
+- `beagle-linux/scripts/build.sh` — container builds
+- `beagle-linux/scripts/pb2-tmux.sh` — board demo
 
 ## Zephyr — `zephyr-m4/` and `manifest/`
 

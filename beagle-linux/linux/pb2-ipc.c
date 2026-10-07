@@ -27,7 +27,7 @@
  *   Prints the shared-RAM X/Y record once and exits.
  *
  * pb2-ipc linux <dir>
- *   Sends the hello-world script, then reads commands.
+ *   Sends the startup script, then reads commands such as xy.
  */
 
 static int write_all(int fd, const void *buf, size_t len)

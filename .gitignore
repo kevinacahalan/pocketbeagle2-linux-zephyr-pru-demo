@@ -22,7 +22,6 @@ third_party/
 
 # Build products.
 pru/build/
-linux/pb2-ipc
 beagle-linux/linux/pb2-ipc
 beagle-linux/linux/pb2-spi
 beagle-linux/linux/*.dtbo
