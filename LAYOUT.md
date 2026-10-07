@@ -25,7 +25,7 @@ The Debian image already on the board. This is the active test target.
 
 ## Yocto — `yocto/`
 
-`kas/`, `layers/`, and `config/` only. No image is built or deployed from this tree. The board keeps the Debian image.
+`yocto/kas/pb2-poky.yml` is the kas-container config for `pb2-demo-image`, a minimum Poky image for machine `pocketbeagle2`. `yocto/layers/meta-pb2` compiles the Linux demo, the Zephyr M4 firmware, and both PRU firmwares. `yocto/sources/`, `yocto/downloads/`, and `yocto/build/` are generated and not committed. The build does not flash the board. The Debian image under `beagle-linux/` stays the active test target.
 
 ## Temporary
 

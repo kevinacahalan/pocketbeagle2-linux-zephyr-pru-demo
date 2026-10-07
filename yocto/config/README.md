@@ -1,1 +1,1 @@
-Local config fragments for a later image. None yet.
+Machine and distro settings are in `yocto/kas/pb2-poky.yml`. There is no separate local.conf fragment.

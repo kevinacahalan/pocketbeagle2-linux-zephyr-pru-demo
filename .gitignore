@@ -20,6 +20,12 @@ build/
 third_party/
 .cache/
 
+# Yocto kas-container tree. Kas files and meta-pb2 stay tracked.
+yocto/sources/
+yocto/downloads/
+yocto/build/
+yocto/sstate-cache/
+
 # Build products.
 pru/build/
 beagle-linux/linux/pb2-ipc

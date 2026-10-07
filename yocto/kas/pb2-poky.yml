@@ -1,0 +1,60 @@
+# Minimum Poky image for PocketBeagle 2.
+#
+# Layers, kernel, and machine come from TI's poky-wrynose kas file
+# (oe-layersetup kas/poky-wrynose-config.yml). That file pulls oe-core,
+# meta-poky, meta-arm, meta-ti (meta-ti-bsp and meta-beagle), and the
+# meta-oe pieces those layers need. The distro stays poky. This is not
+# an Arago tisdk image.
+#
+# Run from the repo root with kas-container. See the top-level README.
+
+header:
+  version: 17
+  includes:
+    - repo: oe-layersetup
+      file: kas/poky-wrynose-config.yml
+
+build_system: openembedded
+machine: pocketbeagle2
+distro: poky
+target: pb2-demo-image
+
+repos:
+  oe-layersetup:
+    url: https://git.ti.com/git/arago-project/oe-layersetup.git
+    branch: master
+    commit: ff8359fb6459bbc7ec5d8396d0cd0e5f66854ccc
+    path: yocto/sources/oe-layersetup
+    layers:
+      .: disabled
+
+  # Keep TI checkouts under yocto/sources instead of the repo root.
+  bitbake:
+    path: yocto/sources/bitbake
+    commit: 51fd94a67fa17650a9ff623492005972bbc7d26f
+  meta-yocto:
+    path: yocto/sources/meta-yocto
+    commit: 7c25b11156553145fa6b241a2d4f65d94438f804
+  meta-openembedded:
+    path: yocto/sources/meta-openembedded
+    commit: 47d7dbdd10890bbd429bc0cccbe14435c37e5af1
+  meta-ti:
+    path: yocto/sources/meta-ti
+    commit: f14ecb71de5c05d717fe0cecd47fea69f26d5306
+  meta-arm:
+    path: yocto/sources/meta-arm
+    commit: 673e8d7c5dcd14de58092eb73e6ecc5eee5c1735
+  oe-core:
+    path: yocto/sources/oe-core
+    commit: 0f03c732a0a2d0506b41b1abe60b3f368b2300dc
+
+  meta-pb2:
+    path: yocto/layers/meta-pb2
+
+local_conf_header:
+  pb2-poky: |
+    DISTRO = "poky"
+    MACHINE = "pocketbeagle2"
+    # The TI template commits buildhistory. Skip that so the build does
+    # not need a git identity.
+    BUILDHISTORY_COMMIT = "0"

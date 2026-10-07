@@ -2,7 +2,7 @@
 
 Linux on the A53s calls Zephyr functions over eRPC on the existing RPMsg channel, and commands PRU0 over RPMsg. Zephyr asks PRU0 through a small DDR mailbox. PRU0 is the transfer core: it arms PRU1 in PRU shared RAM, and it also writes a 32-bit X and a 32-bit Y there. PRU1 does not use RPMsg. It runs a cycle-counted loop, samples the arm block once per period, and when the X/Y sequence changes it shifts that pair out on a header pin. Linux hands Zephyr bulk chunks through a separate DDR region (`zephyr-m4/include/pb2_shm.h`). The device-manager R5 is not loaded or stopped.
 
-The board still runs the BeagleBoard Debian image. That tree is `beagle-linux/`, and it is the active test target. Yocto is only a slot for kas, layers, and config. Laptop builds run in containers.
+The board still runs the BeagleBoard Debian image. That tree is `beagle-linux/`, and it is the active test target. A separate minimum Poky image is built with kas-container from `yocto/kas/pb2-poky.yml`. These instructions do not flash the board. Laptop builds run in containers.
 
 `LAYOUT.md` is the directory map.
 
@@ -41,6 +41,18 @@ Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`
    ```
 
    Output: `beagle-linux/kernel/pru_rproc/pru_rproc.ko`.
+
+5. Poky image for PocketBeagle 2, with kas-container. The machine, kernel, and layers come from TI's `kas/poky-wrynose-config.yml`. The distro is poky, and the target is `pb2-demo-image` (core-image-minimal plus the demo). The build compiles `pb2-ipc`, `pb2-spi`, the Zephyr M4 ELF, and both PRU firmwares. It does not flash the board, and it does not load or stop `78000000.r5f`.
+
+   From the repo root:
+
+   ```
+   wget -O kas-container https://raw.githubusercontent.com/siemens/kas/5.5/kas-container
+   chmod +x kas-container
+   KAS_BUILD_DIR=yocto/build KAS_CONTAINER_ENGINE=podman ./kas-container build yocto/kas/pb2-poky.yml
+   ```
+
+   Downloads, shared state, and `tmp/` stay under `yocto/`. They are not committed. The device-tree overlays are installed as files under `/lib/firmware` and are not added to the boot overlay list.
 
 ### Zephyr devicetree overlay
 

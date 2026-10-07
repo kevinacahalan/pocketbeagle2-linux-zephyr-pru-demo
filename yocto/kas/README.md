@@ -1,1 +1,1 @@
-Kas-container files for a later image. None yet. Do not bitbake or deploy from here.
+`pb2-poky.yml` is the kas-container config. It includes TI's `kas/poky-wrynose-config.yml` and builds `pb2-demo-image`.
