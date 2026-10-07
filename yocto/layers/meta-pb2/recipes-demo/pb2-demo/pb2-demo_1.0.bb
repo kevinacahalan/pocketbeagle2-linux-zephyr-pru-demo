@@ -39,7 +39,8 @@ do_compile () {
         CC="${CC}" \
         CXX="${CXX}" \
         CFLAGS="${CFLAGS}" \
-        CXXFLAGS="${CXXFLAGS} ${LDFLAGS} -std=c++17 -fno-exceptions -fno-rtti"
+        LDFLAGS="${LDFLAGS}" \
+        CXXFLAGS="${CXXFLAGS} -std=c++17 -fno-exceptions -fno-rtti"
 }
 
 do_install () {

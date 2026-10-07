@@ -31,13 +31,13 @@ all: pb2-ipc pb2-spi k3-am62-pocketbeagle2-spi0-hello.dtbo \
 	k3-am62-pocketbeagle2-pru1-xy.dtbo
 
 pb2-ipc: pb2-ipc.o $(ERPC_SRCS)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ pb2-ipc.o $(ERPC_SRCS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDES) -o $@ pb2-ipc.o $(ERPC_SRCS)
 
 pb2-ipc.o: pb2-ipc.c pb2_erpc_linux.h
 	$(CC) $(CFLAGS) -I. -I$(ROOT)/zephyr-m4/include -c -o $@ pb2-ipc.c
 
 pb2-spi: pb2-spi.c
-	$(CC) $(CFLAGS) -o $@ pb2-spi.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ pb2-spi.c
 
 k3-am62-pocketbeagle2-spi0-hello.dtbo: k3-am62-pocketbeagle2-spi0-hello.dtso
 	dtc -@ -I dts -O dtb -o $@ $<
