@@ -2,15 +2,15 @@
 
 Linux on the A53s calls Zephyr functions over eRPC on the existing RPMsg channel, and commands PRU0 over RPMsg. Zephyr asks PRU0 through a small DDR mailbox. PRU0 is the transfer core: it arms PRU1 in PRU shared RAM, and it also writes a 32-bit X and a 32-bit Y there. PRU1 does not use RPMsg. It runs a cycle-counted loop, samples the arm block once per period, and when the X/Y sequence changes it shifts that pair out on a header pin. Linux hands Zephyr bulk chunks through a separate DDR region (`zephyr-m4/include/pb2_shm.h`). The device-manager R5 is not loaded or stopped.
 
-The board still runs the BeagleBoard Debian image. That tree is `beagle-linux/`, and it is the active test target. A separate minimum Poky image is built with kas-container from `yocto/kas/pb2-poky.yml`. These instructions do not flash the board. Laptop builds run in containers.
+The board still runs the BeagleBoard Debian image. That tree is `beagle-linux/`, and it is the active test target. A separate minimum Poky image is built with kas-container from `yocto/kas/pb2-poky.yml`. These instructions do not flash the board. Host builds run in containers.
 
 `LAYOUT.md` is the directory map.
 
 ## Build
 
-Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`. It uses podman. Do not use a compiler installed on the laptop. `./beagle-linux/scripts/build.sh` with no argument builds userspace, PRU firmware, and Zephyr, in that order. The kernel module is a separate step because it needs the board's kernel headers.
+Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`. It uses podman to build the images described by the Containerfiles, then runs the compile in those images. Do not use a compiler installed on the host. `./beagle-linux/scripts/build.sh` with no argument builds userspace, PRU firmware, and Zephyr, in that order. The kernel module is a separate step because it needs the board's kernel headers.
 
-1. Linux userspace, in `debian:13`. This also clones EmbeddedRPC 1.14.0 into `third_party/erpc` if it is missing.
+1. Linux userspace, image `pb2-linux-userspace` from `containers/linux/Containerfile` (Debian 13, the aarch64 cross compiler, and `dtc`). This also clones EmbeddedRPC 1.14.0 into `third_party/erpc` if it is missing.
 
    ```
    ./beagle-linux/scripts/build.sh linux
@@ -18,7 +18,7 @@ Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`
 
    Output: `beagle-linux/linux/pb2-ipc`.
 
-2. PRU firmware. If `clpru` is not already under `.cache/ti/`, the TI CGT 2.3.3 installer runs in `debian:buster` (the installer is a 32-bit stub that needs that older glibc). The firmware itself is compiled in `debian:13`.
+2. PRU firmware, image `pb2-pru-cgt` from `containers/pru-cgt/Containerfile`. The first stage installs TI CGT 2.3.3 on Debian 10, because the installer is a 32-bit stub that needs that older glibc. The second stage is Debian 13 with `clpru` at `/opt/ti-cgt-pru`. The firmware is compiled there.
 
    ```
    ./beagle-linux/scripts/build.sh pru
@@ -26,7 +26,7 @@ Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`
 
    PRU0, the transfer core, is `pru/pru0/` (`main.c` and `AM62x_PRU0.cmd`). PRU1, the SLIP frame, is `pru/pru1/`: the sample loop is `main.c`, the pin shifting is `slip_tx.asm`, and the linker script is `AM62x_PRU1.cmd`. Output: `pru/build/am62x-pru0-fw` and `pru/build/am62x-pru1-fw`.
 
-3. Zephyr on the M4, in `ghcr.io/zephyrproject-rtos/ci:latest` with the SDK at `/opt/toolchains/zephyr-sdk-1.0.1`. The container runs `west init -l manifest` from the repo root when `.west/` is missing, then `west update` and `west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4`. Do not run `west init -l .` from the repo root.
+3. Zephyr on the M4, image `pb2-zephyr-sdk` from `containers/zephyr/Containerfile`. That image is the Zephyr CI image with `ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1`. The container runs `west init -l manifest` from the repo root when `.west/` is missing, then `west update` and `west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4`. Do not run `west init -l .` from the repo root.
 
    ```
    ./beagle-linux/scripts/build.sh zephyr
@@ -34,7 +34,7 @@ Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`
 
    Output: `build/zephyr/pb2_m4.elf`.
 
-4. Patched `pru_rproc`, in `debian:13`. The stock module has no virtio kick, so PRU0's RPMsg firmware will not boot until this module is loaded. The script rsyncs `/usr/src/linux-headers-$PB2_KREL` from `$PB2_SSH` into `.cache/` once, then cross-compiles in the container. `PB2_SSH` is required. `PB2_KREL` defaults to `6.18.52-arm64-k3-r56`, the kernel of the BeagleBoard Debian Trixie image this example was exercised on. Set it to `uname -r` on your board if that differs.
+4. Patched `pru_rproc`, in the Linux userspace image. The stock module has no virtio kick, so PRU0's RPMsg firmware will not boot until this module is loaded. The script rsyncs `/usr/src/linux-headers-$PB2_KREL` from `$PB2_SSH` into `.cache/` once, then cross-compiles in the container. `PB2_SSH` is required. `PB2_KREL` defaults to `6.18.52-arm64-k3-r56`, the kernel of the BeagleBoard Debian Trixie image this example was exercised on. Set it to `uname -r` on your board if that differs.
 
    ```
    ./beagle-linux/scripts/build.sh kmod
@@ -58,7 +58,7 @@ Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`
 
 `zephyr-m4/m4/boards/pocketbeagle_2_am6254_m4.overlay` is a Zephyr devicetree overlay, not a Linux overlay for the Debian kernel. `west build` picks it up by board name (`pocketbeagle_2/am6254/m4`) and compiles it into `pb2_m4.elf`. It shrinks the M4 DDR region so two ranges stay outside the Zephyr image: a 64 KiB bulk buffer at `0x9d9ef000` and the 4 KiB mailbox at `0x9d9ff000`. There is no loadable ELF section at either address.
 
-On the flashed Debian image the overlay is not applied with `dtbo`, configfs, or a reboot. `pb2-tmux.sh` copies the ELF to `/lib/firmware/am62-mcu-m4f0_0-fw` and starts remoteproc `5000000.m4fss`. That boot is what brings the overlay's memory map up. The script does not stop or reload `78000000.r5f`.
+On the flashed Debian image the overlay is not applied with `dtbo`, configfs, or a reboot. `pb2-demo` copies the ELF to `/lib/firmware/am62-mcu-m4f0_0-fw` and starts remoteproc `5000000.m4fss`. That boot is what brings the overlay's memory map up. The script does not stop or reload `78000000.r5f`. It does not run at boot.
 
 The same overlay also muxes main SPI2 and, once that ELF is running, `main()` clocks the five bytes `hello` at 1 MHz, mode 0, 8-bit MSB. D1 is MOSI and D0 is MISO. That pinmux is inside `pb2_m4.elf`. It is not a Debian dtbo. The M4 console UART is unwired, so the result is also written to the DDR mailbox: `spi hello ok` after the transfer returns, or `spi hello not ready` / `spi hello fail <errno>` if it does not.
 
@@ -96,7 +96,7 @@ P1.06A (ball AD18), P1.10's other ball A18, and P1.12A (ball AE18) are disabled.
 
 Source: `beagle-linux/linux/k3-am62-pocketbeagle2-spi0-hello.dtso`.
 
-`./beagle-linux/scripts/build.sh linux` builds it in `debian:13` with `dtc`, along with `pb2-ipc` and `pb2-spi`. The blob is `beagle-linux/linux/k3-am62-pocketbeagle2-spi0-hello.dtbo`.
+`./beagle-linux/scripts/build.sh linux` builds it in the Linux userspace image with `dtc`, along with `pb2-ipc` and `pb2-spi`. The blob is `beagle-linux/linux/k3-am62-pocketbeagle2-spi0-hello.dtbo`.
 
 The flashed image loads overlays from the boot partition, not from configfs (`/sys/kernel/config` on this image has no device-tree overlays). Copy the blob to `/boot/firmware/overlays/`, then on the default label in `/boot/firmware/extlinux/extlinux.conf` set:
 
@@ -155,31 +155,40 @@ From the linux window the commands are `pru0 xy <x> <y>` and `zephyr xy <x> <y>`
 
 ## Run
 
-Copy the build products to the board over SSH. `PB2_SSH` is `user@address` for your board. `pb2-tmux.sh` expects this layout under `/home/user/pb2-demo/` (use the account's home, not this placeholder):
+`pb2-demo-image` installs the runner on `PATH` as `/usr/bin/pb2-demo`. Nothing starts the cores at boot. Run it yourself:
 
 ```
-export PB2_SSH=user@192.0.2.2
-ssh "$PB2_SSH" 'mkdir -p /home/user/pb2-demo/fw'
-scp beagle-linux/linux/pb2-ipc beagle-linux/scripts/pb2-tmux.sh \
-  beagle-linux/kernel/pru_rproc/pru_rproc.ko \
-  "$PB2_SSH":/home/user/pb2-demo/
-scp pru/build/am62x-pru0-fw pru/build/am62x-pru1-fw \
-  "$PB2_SSH":/home/user/pb2-demo/fw/
-scp build/zephyr/pb2_m4.elf \
-  "$PB2_SSH":/home/user/pb2-demo/fw/am62-mcu-m4f0_0-fw
+pb2-demo
 ```
 
-`192.0.2.2` and `user` are placeholders. Replace them with the address and account you set up below.
-
-On the board, from that directory:
+That stops the M4, PRU0, and PRU1, starts them again, and merges their output on this console. Each line is prefixed `[Linux]`, `[M4]`, `[PRU0]`, or `[PRU1]`. It never stops, reloads, or replaces `78000000.r5f`.
 
 ```
-./pb2-tmux.sh
+pb2-demo --tmux
+pb2-demo --attach
+pb2-demo --attach --tmux
 ```
 
-The script needs sudo to stop and start the M4 and the two PRUs, insert `pru_rproc.ko` when the running kernel is missing `pru_rproc_kick`, and grant `pb2-ipc` `CAP_SYS_RAWIO` so it can open `/dev/mem`. It leaves `78000000.r5f` alone. It then opens tmux session `pb2` with windows `linux`, `zephyr`, `pru0`, and `pru1`. Attach with `tmux attach -t pb2`. From the linux window: `zephyr say <text>`, `zephyr arm <period> <count>`, `zephyr chunk <text>`, `zephyr xy <x> <y>`, `pru0 xy <x> <y>`, or `pru0 <text>`. `zephyr arm` asks PRU0, through the mailbox, to arm PRU1. `pru0 arm <period> <count>` does that directly. `chunk` writes the bulk region and then calls Zephyr to check it. `xy` hands PRU0 the pair described above.
+`--tmux` is the four-window session `pb2` (`linux`, `zephyr`, `pru0`, `pru1`). `--attach` does not stop or start any core. If session `pb2` is already up, `--attach` attaches to it.
 
-The linux window still sends a startup script before it reads commands: ping PRU0, `say hello from linux`, `arm 100000 30`, `chunk bulk-hello`, then `pru0 arm 250000 20`. That script is not the X/Y measurement below.
+The script needs root or sudo to stop and start the M4 and the two PRUs, insert `pru_rproc.ko` when the running kernel is missing `pru_rproc_kick`, and grant `pb2-ipc` `CAP_SYS_RAWIO` so it can open `/dev/mem`. From the Linux console: `zephyr say <text>`, `zephyr arm <period> <count>`, `zephyr chunk <text>`, `zephyr xy <x> <y>`, `pru0 xy <x> <y>`, or `pru0 <text>`. `zephyr arm` asks PRU0, through the mailbox, to arm PRU1. `pru0 arm <period> <count>` does that directly. `chunk` writes the bulk region and then calls Zephyr to check it. `xy` hands PRU0 the pair described above.
+
+The Linux side still sends a startup script before it reads commands: ping PRU0, `say hello from linux`, `arm 100000 30`, `chunk bulk-hello`, then `pru0 arm 250000 20`. That script is not the X/Y measurement below.
+
+The Debian image does not ship this runner. Copy the binaries and firmware into the system locations, and copy `pru_rproc.ko` when you need `PB2_PRU_KO`:
+
+```
+export PB2_SSH=user@board
+scp beagle-linux/linux/pb2-ipc beagle-linux/scripts/pb2-demo \
+  pru/build/am62x-pru0-fw pru/build/am62x-pru1-fw \
+  build/zephyr/pb2_m4.elf \
+  "$PB2_SSH":/tmp/
+ssh "$PB2_SSH" 'sudo install -m 0755 /tmp/pb2-ipc /tmp/pb2-demo /usr/bin/ \
+  && sudo install -m 0644 /tmp/am62x-pru0-fw /tmp/am62x-pru1-fw /lib/firmware/ \
+  && sudo install -m 0644 /tmp/pb2_m4.elf /lib/firmware/am62-mcu-m4f0_0-fw'
+```
+
+`user@board` is a placeholder. Use the account and address you assigned below.
 
 ## What a passing run looks like
 
@@ -266,7 +275,7 @@ pru1 tick moved 9982 -> 10182
 
 ## Checked in and temporary
 
-Checked in: `beagle-linux/`, `zephyr-m4/`, `pru/` sources, `yocto/`, `manifest/west.yml`, this README, and `LAYOUT.md`.
+Checked in: `beagle-linux/`, `containers/`, `zephyr-m4/`, `pru/` sources, `yocto/`, `manifest/west.yml`, this README, and `LAYOUT.md`.
 
 Left on disk and not committed:
 
@@ -281,16 +290,13 @@ Left on disk and not committed:
 
 ## Reach the board
 
-Nothing here assumes a USB network share is already configured, a particular USB hub, or a particular serial adapter.
-
-Plug in the board's USB gadget. On the host, find the new network interface (CDC NCM). Give that link an address yourself. The Debian image requests DHCP on `usb0`, so one way is to turn on connection sharing for the new interface and note the address the board receives. A static address on both ends works too. Then:
+Plug in the board's USB device port. On the host, find the new network interface and give that link an address. The Debian image requests DHCP on `usb0`. Then:
 
 ```
-export PB2_SSH=user@192.0.2.2
-ping 192.0.2.2
+export PB2_SSH=user@board
 ssh "$PB2_SSH"
 ```
 
-`192.0.2.2` is a documentation address. Use the address your board actually got, and `user` is that board's account.
+`user@board` is a placeholder. Use the account and address you assigned.
 
-A serial console is optional. Any USB-serial adapter on the debug header at 115200 8N1 is enough. The M4's own UART is not wired to that header; the visible Zephyr console is the RPMsg window.
+A serial console is optional, 115200 8N1. The M4 UART is not wired to a header; the visible Zephyr console is the RPMsg window.

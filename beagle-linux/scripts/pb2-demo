@@ -1,0 +1,336 @@
+#!/bin/bash
+# Run the PocketBeagle 2 demo on the board. This does not start at boot.
+#
+#   pb2-demo                 stop M4, PRU0, and PRU1, then one merged console
+#   pb2-demo --tmux          same start, in tmux session pb2 (four windows)
+#   pb2-demo --attach        do not stop or start any core
+#   pb2-demo --attach --tmux attach to session pb2, or open it without a restart
+#
+# Every merged line is prefixed [Linux], [M4], [PRU0], or [PRU1].
+# 78000000.r5f is never stopped, reloaded, or replaced.
+
+set -euo pipefail
+
+SESSION=pb2
+RUN=/tmp/pb2-demo
+R5=78000000.r5f
+M4_NAME=5000000.m4fss
+PRU0_NAME=30074000.pru
+PRU1_NAME=30078000.pru
+
+usage() {
+	cat <<'EOF'
+usage: pb2-demo [--tmux] [--attach]
+
+  (default)  Stop the M4, PRU0, and PRU1, start them again, and print
+             one console. Each line is prefixed [Linux], [M4], [PRU0],
+             or [PRU1].
+  --tmux     Same start, in tmux session pb2. Windows: linux, zephyr,
+             pru0, pru1.
+  --attach   Do not stop or start any core. Connect to what is already
+             running. If session pb2 exists, attach to it.
+EOF
+}
+
+ATTACH=0
+USE_TMUX=0
+while [[ $# -gt 0 ]]; do
+	case $1 in
+	--attach) ATTACH=1 ;;
+	--tmux) USE_TMUX=1 ;;
+	-h|--help) usage; exit 0 ;;
+	*)
+		echo "unknown option: $1" >&2
+		usage >&2
+		exit 2
+		;;
+	esac
+	shift
+done
+
+as_root() {
+	if [[ $(id -u) -eq 0 ]]; then
+		"$@"
+	elif command -v sudo >/dev/null 2>&1; then
+		sudo "$@"
+	else
+		echo "need root or sudo" >&2
+		exit 1
+	fi
+}
+
+# Look up a demo core. Never returns the device-manager R5.
+rproc_by_name() {
+	local want=$1 d name
+	if [[ $want == "$R5" ]]; then
+		echo "refusing to use $want" >&2
+		return 1
+	fi
+	for d in /sys/class/remoteproc/remoteproc*; do
+		[[ -e $d/name ]] || continue
+		name=$(cat "$d/name")
+		if [[ $name == "$R5" ]]; then
+			continue
+		fi
+		if [[ $name == "$want" ]]; then
+			echo "$d"
+			return 0
+		fi
+	done
+	echo "remoteproc $want not found" >&2
+	return 1
+}
+
+# One stop write. A second stop on a virtio PRU with no channel can hang.
+stop_core() {
+	local name=$1 rproc state i
+	case $name in
+	"$M4_NAME"|"$PRU0_NAME"|"$PRU1_NAME") ;;
+	*)
+		echo "refusing to stop $name" >&2
+		exit 1
+		;;
+	esac
+	rproc=$(rproc_by_name "$name")
+	state=$(cat "$rproc/state")
+	if [[ $state == offline ]]; then
+		return 0
+	fi
+	echo stop | as_root tee "$rproc/state" >/dev/null || true
+	for i in $(seq 1 25); do
+		state=$(cat "$rproc/state")
+		if [[ $state == offline ]]; then
+			return 0
+		fi
+		sleep 0.2
+	done
+	echo "$name stayed $state. Power-cycle the board instead of stopping it again." >&2
+	exit 1
+}
+
+load_fw() {
+	local name=$1 fwname=$2 src=$3 rproc dest
+	case $name in
+	"$M4_NAME"|"$PRU0_NAME"|"$PRU1_NAME") ;;
+	*)
+		echo "refusing to load $name" >&2
+		exit 1
+		;;
+	esac
+	case $fwname in
+	am62-mcu-m4f0_0-fw|am62x-pru0-fw|am62x-pru1-fw) ;;
+	*)
+		echo "refusing to install $fwname" >&2
+		exit 1
+		;;
+	esac
+	if [[ ! -f $src ]]; then
+		echo "missing $src" >&2
+		exit 1
+	fi
+	stop_core "$name"
+	rproc=$(rproc_by_name "$name")
+	dest=/lib/firmware/$fwname
+	if [[ $(readlink -f "$src") != $(readlink -f "$dest") ]]; then
+		as_root cp "$src" "$dest"
+	fi
+	echo "$fwname" | as_root tee "$rproc/firmware" >/dev/null
+	echo start | as_root tee "$rproc/state" >/dev/null
+}
+
+find_rpmsg() {
+	local substr=$1 dst_want=$2 d dest dev
+	for d in /sys/class/rpmsg/rpmsg*; do
+		[[ -e $d/dst ]] || continue
+		dest=$(cat "$d/dst")
+		dev=$(readlink -f "$d/device")
+		if [[ $dev == *"$substr"* && $dest == "$dst_want" ]]; then
+			echo "/dev/$(basename "$d")"
+			return 0
+		fi
+	done
+	return 1
+}
+
+firmware_path() {
+	local packaged=$1 built=$2
+	if [[ -f $packaged ]]; then
+		echo "$packaged"
+		return 0
+	fi
+	if [[ -f $built ]]; then
+		echo "$built"
+		return 0
+	fi
+	echo "missing $packaged" >&2
+	return 1
+}
+
+ensure_pru_kick() {
+	local ko="" d
+	if grep -q 'pru_rproc_kick' /proc/kallsyms; then
+		return 0
+	fi
+	if [[ -n ${PB2_PRU_KO:-} && -f $PB2_PRU_KO ]]; then
+		ko=$PB2_PRU_KO
+	elif [[ -f pru_rproc.ko ]]; then
+		ko=$PWD/pru_rproc.ko
+	else
+		echo "pru_rproc has no pru_rproc_kick." >&2
+		echo "Build it with beagle-linux/scripts/build.sh kmod and set PB2_PRU_KO to that file." >&2
+		exit 1
+	fi
+	stop_core "$PRU0_NAME"
+	stop_core "$PRU1_NAME"
+	as_root rmmod pru_rproc || true
+	as_root insmod "$ko"
+}
+
+if [[ $ATTACH -eq 1 ]] && command -v tmux >/dev/null 2>&1 \
+	&& tmux has-session -t "$SESSION" 2>/dev/null; then
+	exec tmux attach -t "$SESSION"
+fi
+
+if [[ $USE_TMUX -eq 1 ]] && ! command -v tmux >/dev/null 2>&1; then
+	echo "tmux is not installed" >&2
+	exit 1
+fi
+
+BIN=$(command -v pb2-ipc || true)
+if [[ -z $BIN ]]; then
+	echo "pb2-ipc is not on PATH" >&2
+	exit 1
+fi
+
+viewer_pids() {
+	local pid cmd
+	for pid in /proc/[0-9]*; do
+		pid=${pid#/proc/}
+		[[ -r /proc/$pid/cmdline ]] || continue
+		cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)
+		case $cmd in
+		*pb2-ipc\ peer*|*pb2-ipc\ erpc*|*pb2-ipc\ watch*|*pb2-ipc\ linux*)
+			echo "$pid"
+			;;
+		esac
+	done
+}
+
+stop_viewers() {
+	local pid
+	for pid in $(viewer_pids); do
+		kill "$pid" 2>/dev/null || true
+	done
+}
+
+if [[ $ATTACH -eq 0 ]]; then
+	if command -v tmux >/dev/null 2>&1 && tmux has-session -t "$SESSION" 2>/dev/null; then
+		tmux kill-session -t "$SESSION"
+	fi
+	stop_viewers
+	sleep 0.3
+	ensure_pru_kick
+	PRU0_FW=$(firmware_path /lib/firmware/am62x-pru0-fw pru/build/am62x-pru0-fw)
+	PRU1_FW=$(firmware_path /lib/firmware/am62x-pru1-fw pru/build/am62x-pru1-fw)
+	M4_FW=$(firmware_path /lib/firmware/am62-mcu-m4f0_0-fw build/zephyr/pb2_m4.elf)
+	load_fw "$PRU0_NAME" am62x-pru0-fw "$PRU0_FW"
+	load_fw "$PRU1_NAME" am62x-pru1-fw "$PRU1_FW"
+	load_fw "$M4_NAME" am62-mcu-m4f0_0-fw "$M4_FW"
+elif [[ -n $(viewer_pids) ]]; then
+	echo "demo viewers are already running. --attach does not restart them." >&2
+	echo "Use the console that started them, or run pb2-demo without --attach." >&2
+	exit 1
+fi
+
+ZEPHYR_DEV=""
+PRU0_DEV=""
+for _ in $(seq 1 30); do
+	ZEPHYR_DEV=$(find_rpmsg "$M4_NAME" 1024 || true)
+	PRU0_DEV=$(find_rpmsg "$PRU0_NAME" 30 || true)
+	if [[ -n $ZEPHYR_DEV && -n $PRU0_DEV ]]; then
+		break
+	fi
+	sleep 0.2
+done
+if [[ -z $ZEPHYR_DEV || -z $PRU0_DEV ]]; then
+	echo "RPMsg devices did not show up" >&2
+	echo "m4=${ZEPHYR_DEV:-missing} pru0=${PRU0_DEV:-missing}" >&2
+	exit 1
+fi
+
+as_root chmod a+rw "$ZEPHYR_DEV" "$PRU0_DEV"
+SETCAP=$(command -v setcap || true)
+if [[ -z $SETCAP && -x /usr/sbin/setcap ]]; then
+	SETCAP=/usr/sbin/setcap
+fi
+if [[ -n $SETCAP ]]; then
+	as_root "$SETCAP" cap_sys_rawio+ep "$BIN"
+else
+	echo "setcap is not installed; /dev/mem access may fail" >&2
+fi
+as_root chmod 0660 /dev/mem
+
+mkdir -p "$RUN"
+rm -f "$RUN/zephyr.in" "$RUN/pru0.in"
+mkfifo "$RUN/zephyr.in" "$RUN/pru0.in"
+
+if [[ $USE_TMUX -eq 1 ]]; then
+	tmux kill-session -t "$SESSION" 2>/dev/null || true
+	tmux new-session -d -s "$SESSION" -n linux
+	tmux new-window -d -t "$SESSION" -n zephyr
+	tmux new-window -d -t "$SESSION" -n pru0
+	tmux new-window -d -t "$SESSION" -n pru1
+	tmux send-keys -t "$SESSION:zephyr" "$BIN erpc $ZEPHYR_DEV $RUN/zephyr.in" C-m
+	tmux send-keys -t "$SESSION:pru0" "$BIN peer pru0 $PRU0_DEV $RUN/pru0.in" C-m
+	tmux send-keys -t "$SESSION:pru1" "$BIN watch" C-m
+	tmux send-keys -t "$SESSION:linux" "$BIN linux $RUN" C-m
+	tmux select-window -t "$SESSION:linux"
+	echo "tmux session '$SESSION' is up"
+	echo "  m4   $ZEPHYR_DEV"
+	echo "  pru0 $PRU0_DEV"
+	echo "  pru1 shared ram"
+	if [[ -t 0 && -t 1 ]]; then
+		exec tmux attach -t "$SESSION"
+	fi
+	exit 0
+fi
+
+prefix() {
+	local tag=$1 line
+	while IFS= read -r line || [[ -n ${line:-} ]]; do
+		printf '%s %s\n' "$tag" "$line"
+	done
+}
+
+pids=()
+cleanup() {
+	local pid
+	if [[ ${#pids[@]} -eq 0 ]]; then
+		return 0
+	fi
+	for pid in "${pids[@]}"; do
+		kill "$pid" 2>/dev/null || true
+	done
+}
+trap cleanup EXIT INT TERM
+
+spawn_prefixed() {
+	local tag=$1 out=$2
+	shift 2
+	rm -f "$out"
+	mkfifo "$out"
+	prefix "$tag" < "$out" &
+	pids+=("$!")
+	"$@" > "$out" 2>&1 &
+	pids+=("$!")
+}
+
+spawn_prefixed '[M4]' "$RUN/m4.out" "$BIN" erpc "$ZEPHYR_DEV" "$RUN/zephyr.in"
+spawn_prefixed '[PRU0]' "$RUN/pru0.out" "$BIN" peer pru0 "$PRU0_DEV" "$RUN/pru0.in"
+spawn_prefixed '[PRU1]' "$RUN/pru1.out" "$BIN" watch
+
+rm -f "$RUN/linux.out"
+mkfifo "$RUN/linux.out"
+prefix '[Linux]' < "$RUN/linux.out" &
+pids+=("$!")
+"$BIN" linux "$RUN" > "$RUN/linux.out" 2>&1

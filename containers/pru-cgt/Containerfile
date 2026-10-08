@@ -1,0 +1,40 @@
+# TI CGT 2.3.3 for the PRU firmware.
+# The installer is a 32-bit stub that needs the older glibc in Debian 10,
+# plus libgcc for pthread_cancel. clpru itself is a static binary, so the
+# firmware build runs on Debian 13 with that toolchain copied in.
+FROM docker.io/library/debian:buster AS cgt
+
+RUN sed -i \
+		-e 's|deb.debian.org|archive.debian.org|g' \
+		-e 's|security.debian.org|archive.debian.org|g' \
+		/etc/apt/sources.list \
+	&& printf 'Acquire::Check-Valid-Until false;\n' > /etc/apt/apt.conf.d/99no-check \
+	&& apt-get update \
+	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+		ca-certificates \
+		curl \
+		libc6-i386 \
+		lib32gcc1 \
+	&& curl -fL -o /tmp/ti-cgt.bin \
+		https://software-dl.ti.com/codegen/esd/cgt_public_sw/PRU/2.3.3/ti_cgt_pru_2.3.3_linux_installer_x86.bin \
+	&& echo '1f1405167214f2c0ef848591b17a7799fdcd9f55f11bc90db9ace3490d426215  /tmp/ti-cgt.bin' \
+		| sha256sum -c - \
+	&& chmod +x /tmp/ti-cgt.bin \
+	&& /tmp/ti-cgt.bin --mode unattended --prefix /opt/ti \
+	&& test -x /opt/ti/ti-cgt-pru_2.3.3/bin/clpru \
+	&& rm -f /tmp/ti-cgt.bin \
+	&& rm -rf /var/lib/apt/lists/*
+
+FROM docker.io/library/debian:13
+
+RUN apt-get update \
+	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+		make \
+		ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
+
+COPY --from=cgt /opt/ti/ti-cgt-pru_2.3.3 /opt/ti-cgt-pru
+
+ENV PRU_CGT=/opt/ti-cgt-pru
+
+WORKDIR /work

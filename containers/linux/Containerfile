@@ -1,0 +1,22 @@
+# Linux userspace image for pb2-ipc, pb2-spi, and the device-tree overlays.
+# The same image cross-compiles the out-of-tree pru_rproc module.
+FROM docker.io/library/debian:13
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends \
+		make \
+		gcc \
+		g++ \
+		gcc-aarch64-linux-gnu \
+		g++-aarch64-linux-gnu \
+		libc6-dev-arm64-cross \
+		device-tree-compiler \
+		flex \
+		bison \
+		bc \
+		ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work

@@ -1,5 +1,5 @@
 SUMMARY = "PocketBeagle 2 Linux demo (pb2-ipc and pb2-spi)"
-DESCRIPTION = "Cross-compiles the in-tree userspace demo and its device-tree overlays. EmbeddedRPC is fetched and compiled; nothing is copied from a previous laptop build."
+DESCRIPTION = "Cross-compiles the in-tree userspace demo and its device-tree overlays, and installs the pb2-demo runner. EmbeddedRPC is fetched and compiled."
 LICENSE = "BSD-3-Clause & CLOSED"
 LIC_FILES_CHKSUM = "file://third_party/erpc/LICENSE;md5=b66f32a90f9577a5a3255c21d79bc619"
 
@@ -18,6 +18,7 @@ SRC_URI = " \
     file://beagle-linux/linux/k3-am62-pocketbeagle2-pru1-xy.dtso;subdir=src \
     file://zephyr-m4/include/pb2_shm.h;subdir=src \
     file://zephyr-m4/erpc/shim;subdir=src \
+    file://beagle-linux/scripts/pb2-demo;subdir=src \
     git://github.com/EmbeddedRPC/erpc.git;protocol=https;nobranch=1;destsuffix=src/third_party/erpc;name=erpc \
 "
 SRCREV_erpc = "e8d5684a920e023a49cec875c04ad05ddc8521e6"
@@ -48,6 +49,7 @@ do_install () {
     install -d ${D}${nonarch_base_libdir}/firmware
     install -m 0755 ${S}/beagle-linux/linux/pb2-ipc ${D}${bindir}/pb2-ipc
     install -m 0755 ${S}/beagle-linux/linux/pb2-spi ${D}${bindir}/pb2-spi
+    install -m 0755 ${S}/beagle-linux/scripts/pb2-demo ${D}${bindir}/pb2-demo
     # Overlays are built here and installed as files. They are not added
     # to the boot fdtoverlays list.
     install -m 0644 ${S}/beagle-linux/linux/k3-am62-pocketbeagle2-spi0-hello.dtbo \
@@ -57,3 +59,6 @@ do_install () {
 }
 
 FILES:${PN} += "${nonarch_base_libdir}/firmware/*.dtbo"
+
+# The runner is a shell script. It is not a boot service.
+RDEPENDS:${PN} += "bash tmux libcap"

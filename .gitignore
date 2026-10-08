@@ -2,6 +2,7 @@
 #   README.md, LAYOUT.md, .gitignore
 #   manifest/                         west manifest (workspace topdir is the repo root)
 #   beagle-linux/                     Debian userspace, patched pru_rproc, scripts
+#   containers/                       Linux, TI CGT, and Zephyr SDK images
 #   zephyr-m4/                        M4 app and shared mailbox header
 #   pru/pru0/ pru/pru1/               one folder per PRU core (not pru/build/)
 #   yocto/                            kas, layers, and config only

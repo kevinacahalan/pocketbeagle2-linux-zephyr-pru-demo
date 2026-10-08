@@ -1,6 +1,6 @@
 # Layout
 
-Four areas. The root keeps this note, `README.md`, `.gitignore`, and `manifest/` (the west manifest). Generated trees stay at the root and are not committed.
+The root keeps this note, `README.md`, `.gitignore`, `manifest/` (the west manifest), and `containers/` (the three build images). Generated trees stay at the root and are not committed.
 
 ## Beagle Linux — `beagle-linux/`
 
@@ -8,8 +8,8 @@ The Debian image already on the board. This is the active test target.
 
 - `beagle-linux/linux/` — userspace IPC (`pb2-ipc`, `pb2-spi`)
 - `beagle-linux/kernel/pru_rproc/` — patched `pru_rproc` with virtio kick
-- `beagle-linux/scripts/build.sh` — container builds
-- `beagle-linux/scripts/pb2-tmux.sh` — board demo
+- `beagle-linux/scripts/build.sh` — builds the container images, then compiles
+- `beagle-linux/scripts/pb2-demo` — on-target runner, installed as `/usr/bin/pb2-demo`
 
 ## Zephyr — `zephyr-m4/` and `manifest/`
 
@@ -25,7 +25,13 @@ The Debian image already on the board. This is the active test target.
 
 ## Yocto — `yocto/`
 
-`yocto/kas/pb2-poky.yml` is the kas-container config for `pb2-demo-image`, a minimum Poky image for machine `pocketbeagle2`. `yocto/layers/meta-pb2` compiles the Linux demo, the Zephyr M4 firmware, and both PRU firmwares. `yocto/sources/`, `yocto/downloads/`, and `yocto/build/` are generated and not committed. The build does not flash the board. The Debian image under `beagle-linux/` stays the active test target.
+`yocto/kas/pb2-poky.yml` is the kas-container config for `pb2-demo-image`, a minimum Poky image for machine `pocketbeagle2`. `yocto/layers/meta-pb2` compiles the Linux demo, the Zephyr M4 firmware, and both PRU firmwares, and installs `pb2-demo` on `PATH`. The image does not start those cores at boot. `yocto/sources/`, `yocto/downloads/`, and `yocto/build/` are generated and not committed. The build does not flash the board. The Debian image under `beagle-linux/` stays the active test target.
+
+## Containers — `containers/`
+
+- `containers/linux/Containerfile` — Linux userspace (`pb2-linux-userspace`)
+- `containers/pru-cgt/Containerfile` — TI CGT, then the PRU firmware image (`pb2-pru-cgt`)
+- `containers/zephyr/Containerfile` — Zephyr SDK (`pb2-zephyr-sdk`)
 
 ## Temporary
 

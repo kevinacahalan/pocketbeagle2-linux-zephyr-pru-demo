@@ -1,6 +1,9 @@
 #!/bin/bash
-# Containerized builds: Zephyr in the official Zephyr image, PRU with TI CGT,
-# Linux userspace with the aarch64 cross compiler.
+# Build the demo in the container images under containers/.
+#   containers/linux/Containerfile    Linux userspace and the PRU kernel module
+#   containers/pru-cgt/Containerfile  TI CGT 2.3.3, then the PRU firmware
+#   containers/zephyr/Containerfile   Zephyr SDK for the M4
+# The Poky image stays at yocto/kas/pb2-poky.yml. This script does not flash.
 
 set -euo pipefail
 
@@ -8,33 +11,17 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 CACHE=$ROOT/.cache
 PSSP=$ROOT/third_party/pru-software-support-package
 PSSP_REV=28107daa1d184059f67676ba49d0fcaebb0f6a96
-CGT=$CACHE/ti/ti-cgt-pru_2.3.3
-INSTALLER=$CACHE/ti_cgt_pru_2.3.3_linux_installer_x86.bin
-
-install_cgt() {
-	if [[ -x $CGT/bin/clpru ]]; then
-		return
-	fi
-	mkdir -p "$CACHE"
-	if [[ ! -f $INSTALLER ]]; then
-		curl -fL -o "$INSTALLER" \
-			https://software-dl.ti.com/codegen/esd/cgt_public_sw/PRU/2.3.3/ti_cgt_pru_2.3.3_linux_installer_x86.bin
-	fi
-	chmod +x "$INSTALLER"
-	# The installer is a 32-bit Bitrock stub that only starts on older glibc.
-	podman run --rm --security-opt label=disable \
-		-v "$CACHE:/cache" \
-		docker.io/library/debian:buster \
-		bash -lc 'sed -i "s|deb.debian.org|archive.debian.org|g; s|security.debian.org|archive.debian.org|g" /etc/apt/sources.list && printf "Acquire::Check-Valid-Until false;\n" > /etc/apt/apt.conf.d/99no-check && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y libc6-i386 && cp /cache/ti_cgt_pru_2.3.3_linux_installer_x86.bin /tmp/inst.bin && chmod +x /tmp/inst.bin && /tmp/inst.bin --mode unattended --prefix /cache/ti'
-	if [[ ! -x $CGT/bin/clpru ]]; then
-		echo "clpru was not installed at $CGT" >&2
-		find "$CACHE" -name clpru -type f >&2 || true
-		exit 1
-	fi
-}
-
 ERPC=$ROOT/third_party/erpc
 ERPC_REV=1.14.0
+
+IMAGE_LINUX=pb2-linux-userspace
+IMAGE_PRU=pb2-pru-cgt
+IMAGE_ZEPHYR=pb2-zephyr-sdk
+
+build_image() {
+	local tag=$1 file=$2
+	podman build -t "$tag" -f "$file" "$(dirname "$file")"
+}
 
 fetch_erpc() {
 	if [[ -f $ERPC/zephyr/module.yml ]]; then
@@ -54,28 +41,37 @@ fetch_pssp() {
 	git -C "$PSSP" checkout "$PSSP_REV"
 }
 
+build_linux() {
+	build_image "$IMAGE_LINUX" "$ROOT/containers/linux/Containerfile"
+	fetch_erpc
+	podman run --rm --security-opt label=disable \
+		-v "$ROOT:/work" -w /work/beagle-linux/linux \
+		"$IMAGE_LINUX" \
+		make clean all
+}
+
 build_pru() {
-	install_cgt
+	build_image "$IMAGE_PRU" "$ROOT/containers/pru-cgt/Containerfile"
 	fetch_pssp
 	podman run --rm --security-opt label=disable \
-		-v "$ROOT:/work" \
-		-v "$CGT:/opt/ti-cgt-pru:ro" \
-		-w /work \
-		docker.io/library/debian:13 \
-		bash -lc 'apt-get update && apt-get install -y make && make -C pru PRU_CGT=/opt/ti-cgt-pru PSSP=/work/third_party/pru-software-support-package'
+		-v "$ROOT:/work" -w /work \
+		-e PRU_CGT=/opt/ti-cgt-pru \
+		"$IMAGE_PRU" \
+		make -C pru PRU_CGT=/opt/ti-cgt-pru PSSP=/work/third_party/pru-software-support-package
 }
 
 # The PRU remoteproc patch has to match the board kernel. Headers are copied
-# from the board once; the module itself is cross-compiled here.
+# from the board once; the module itself is cross-compiled in the Linux image.
 build_kmod() {
 	local krel=${PB2_KREL:-6.18.52-arm64-k3-r56}
 	local headers=$CACHE/linux-headers-$krel
 	local host=${PB2_SSH:-}
 	if [[ -z $host ]]; then
-		echo "Set PB2_SSH to user@board (SSH to the board, which must have the matching kernel headers)." >&2
+		echo "Set PB2_SSH to user@board (the board must have the matching kernel headers)." >&2
 		echo "Set PB2_KREL if uname -r on the board is not $krel." >&2
 		exit 1
 	fi
+	build_image "$IMAGE_LINUX" "$ROOT/containers/linux/Containerfile"
 	if [[ ! -f $headers/Makefile ]]; then
 		echo "fetching kernel headers from $host"
 		mkdir -p "$headers"
@@ -85,10 +81,8 @@ build_kmod() {
 		-v "$ROOT:/work" \
 		-v "$headers:/headers:ro" \
 		-w /work \
-		docker.io/library/debian:13 \
+		"$IMAGE_LINUX" \
 		bash -lc 'set -euo pipefail
-			apt-get update
-			DEBIAN_FRONTEND=noninteractive apt-get install -y make gcc g++ gcc-aarch64-linux-gnu libc6-dev-arm64-cross flex bison bc
 			rm -rf /tmp/kheaders
 			cp -a /headers /tmp/kheaders
 			# Headers from the board contain aarch64 host tools. Rebuild the two
@@ -104,20 +98,20 @@ build_kmod() {
 			'
 }
 
-build_linux() {
-	fetch_erpc
-	podman run --rm --security-opt label=disable \
-		-v "$ROOT:/work" -w /work/beagle-linux/linux \
-		docker.io/library/debian:13 \
-		bash -lc 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu make device-tree-compiler && make clean && make'
-}
-
 build_zephyr() {
+	build_image "$IMAGE_ZEPHYR" "$ROOT/containers/zephyr/Containerfile"
 	fetch_erpc
 	podman run --rm --security-opt label=disable \
 		-v "$ROOT:/work" -w /work \
-		ghcr.io/zephyrproject-rtos/ci:latest \
-		bash -lc 'export ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1; git config --global --add safe.directory "*"; if [[ ! -d .west ]]; then west init -l manifest; fi && west update && west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4 -p always'
+		"$IMAGE_ZEPHYR" \
+		bash -lc 'set -euo pipefail
+			export ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1
+			git config --global --add safe.directory "*"
+			if [[ ! -d .west ]]; then
+				west init -l manifest
+			fi
+			west update
+			west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4 -p always'
 }
 
 case ${1:-all} in
