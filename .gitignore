@@ -11,7 +11,7 @@
 
 # West workspace created by `west init -l manifest` from the repo root.
 .west/
-zephyr/
+/zephyr/
 modules/
 bootloader/
 tools/

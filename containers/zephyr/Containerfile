@@ -1,0 +1,11 @@
+# Zephyr SDK image for the M4 firmware.
+# ghcr.io/zephyrproject-rtos/ci carries West and the SDK. This file names
+# that SDK so the build script does not hide the path in a shell one-liner.
+FROM ghcr.io/zephyrproject-rtos/ci:latest
+
+ENV ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1
+
+RUN test -x /opt/python/venv/bin/west \
+	&& test -d /opt/toolchains/zephyr-sdk-1.0.1
+
+WORKDIR /work
