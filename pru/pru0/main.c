@@ -124,6 +124,48 @@ static void publish_xy(volatile struct pb2_xy *xy, uint32_t *xy_seq,
 	xy->seq = *xy_seq;
 }
 
+/* Who asked, and what PRU0 stored for PRU1. No printf on this core. */
+static uint16_t reply_xy(char *dst, uint16_t max, const char *who,
+			 uint32_t seq, uint32_t x, uint32_t y)
+{
+	uint16_t n = 0;
+
+	n = append_str(dst, n, max, who);
+	n = append_str(dst, n, max, " asked PRU0 to publish X/Y, and PRU0 wrote x ");
+	n = append_u32(dst, n, max, x);
+	n = append_str(dst, n, max, " y ");
+	n = append_u32(dst, n, max, y);
+	n = append_str(dst, n, max, " seq ");
+	n = append_u32(dst, n, max, seq);
+	n = append_str(dst, n, max, " for PRU1");
+	return n;
+}
+
+static uint16_t reply_arm(char *dst, uint16_t max, const char *who,
+			  uint32_t period, uint32_t count)
+{
+	uint16_t n = 0;
+
+	n = append_str(dst, n, max, who);
+	n = append_str(dst, n, max, " asked PRU0 to arm PRU1, and PRU0 wrote period ");
+	n = append_u32(dst, n, max, period);
+	n = append_str(dst, n, max, " count ");
+	n = append_u32(dst, n, max, count);
+	n = append_str(dst, n, max, " for PRU1");
+	return n;
+}
+
+static uint16_t reply_echo(char *dst, uint16_t max, const char *who, const char *text)
+{
+	uint16_t n = 0;
+
+	n = append_str(dst, n, max, who);
+	n = append_str(dst, n, max, " sent \"");
+	n = append_str(dst, n, max, text);
+	n = append_str(dst, n, max, "\" to PRU0, and PRU0 echoed it");
+	return n;
+}
+
 static void arm_pru1(volatile struct pb2_arm *arm, uint32_t *arm_seq,
 		     uint32_t period, uint32_t count)
 {
@@ -206,23 +248,14 @@ void main(void)
 				cmd[i] = 0;
 				if (parse_xy(cmd, &x, &y)) {
 					publish_xy(xy, &xy_seq, x, y);
-					n = append_str(tx, 0, sizeof(tx), "pru0: xy seq ");
-					n = append_u32(tx, n, sizeof(tx), xy_seq);
-					n = append_str(tx, n, sizeof(tx), " x ");
-					n = append_u32(tx, n, sizeof(tx), x);
-					n = append_str(tx, n, sizeof(tx), " y ");
-					n = append_u32(tx, n, sizeof(tx), y);
+					n = reply_xy(tx, sizeof(tx), "Linux", xy_seq, x, y);
 					send_bytes(&transport, dst, src, tx, n);
 				} else if (parse_arm(cmd, &period, &count)) {
 					arm_pru1(arm, &arm_seq, period, count);
-					n = append_str(tx, 0, sizeof(tx), "pru0: linux arm ");
-					n = append_u32(tx, n, sizeof(tx), period);
-					n = append_str(tx, n, sizeof(tx), " ");
-					n = append_u32(tx, n, sizeof(tx), count);
+					n = reply_arm(tx, sizeof(tx), "Linux", period, count);
 					send_bytes(&transport, dst, src, tx, n);
 				} else {
-					n = append_str(tx, 0, sizeof(tx), "pru0: ");
-					n = append_str(tx, n, sizeof(tx), cmd);
+					n = reply_echo(tx, sizeof(tx), "Linux", cmd);
 					send_bytes(&transport, dst, src, tx, n);
 				}
 			}
@@ -244,16 +277,23 @@ void main(void)
 			cmd[i] = 0;
 			if (parse_xy(cmd, &x, &y)) {
 				publish_xy(xy, &xy_seq, x, y);
+				if (peer_known) {
+					uint16_t n = reply_xy(tx, sizeof(tx), "Zephyr",
+							      xy_seq, x, y);
+
+					send_bytes(&transport, dst, src, tx, n);
+				}
 			} else if (parse_arm(cmd, &period, &count)) {
 				arm_pru1(arm, &arm_seq, period, count);
-			}
-			if (peer_known) {
-				uint16_t n = 0;
+				if (peer_known) {
+					uint16_t n = reply_arm(tx, sizeof(tx), "Zephyr",
+							       period, count);
 
-				n = append_str(tx, n, sizeof(tx), "pru0: shm ");
-				n = append_u32(tx, n, sizeof(tx), seq);
-				n = append_str(tx, n, sizeof(tx), " ");
-				n = append_str(tx, n, sizeof(tx), cmd);
+					send_bytes(&transport, dst, src, tx, n);
+				}
+			} else if (peer_known) {
+				uint16_t n = reply_echo(tx, sizeof(tx), "Zephyr", cmd);
+
 				send_bytes(&transport, dst, src, tx, n);
 			}
 		}

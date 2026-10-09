@@ -99,7 +99,11 @@ static int peer_main(int argc, char **argv)
 		if (pf[0].revents & POLLIN) {
 			n = read(dev, rx, sizeof(rx));
 			if (n > 0) {
-				printf("%s <- %.*s", label, (int)n, rx);
+				/* The firmware sentence already names who asked
+				 * and what this core did. Do not prefix it with
+				 * the core name again.
+				 */
+				printf("%.*s", (int)n, rx);
 				if (rx[n - 1] != '\n') {
 					printf("\n");
 				}
@@ -120,7 +124,7 @@ static int peer_main(int argc, char **argv)
 						return 1;
 					}
 					if (fill) {
-						printf("%s -> %s\n", label, line);
+						printf("sent to %s: %s\n", label, line);
 						fflush(stdout);
 					}
 					fill = 0;
@@ -220,12 +224,13 @@ static int do_chunk(const char *text)
 	seq = chunk_seq++;
 	bulk->seq = seq;
 	if (pb2_erpc_take(seq, n, crc, &got)) {
-		printf("zephyr chunk seq %u len %u crc %08x -> mismatch %08x\n",
+		printf("Linux asked Zephyr to check the chunk, and Zephyr saw a mismatch seq %u len %u crc %08x got %08x\n",
 		       seq, n, crc, got);
 		fflush(stdout);
 		return -1;
 	}
-	printf("zephyr chunk seq %u len %u crc %08x -> ok\n", seq, n, crc);
+	printf("Linux asked Zephyr to check the chunk, and Zephyr matched seq %u len %u crc %08x\n",
+	       seq, n, crc);
 	fflush(stdout);
 	return 0;
 }
@@ -236,11 +241,13 @@ static int erpc_line(const char *line)
 
 	if (!strncmp(line, "say ", 4)) {
 		if (pb2_erpc_say(line + 4, reply, sizeof(reply))) {
-			printf("zephyr say failed\n");
+			printf("Linux asked Zephyr to say \"%s\", and Zephyr failed\n",
+			       line + 4);
 			fflush(stdout);
 			return -1;
 		}
-		printf("zephyr <- %s\n", reply);
+		printf("Linux asked Zephyr to say \"%s\", and Zephyr replied \"%s\"\n",
+		       line + 4, reply);
 		fflush(stdout);
 		return 0;
 	}
@@ -253,11 +260,12 @@ static int erpc_line(const char *line)
 			return -1;
 		}
 		if (pb2_erpc_arm(period, count)) {
-			printf("zephyr arm failed\n");
+			printf("Linux asked Zephyr to arm PRU1, and Zephyr failed\n");
 			fflush(stdout);
 			return -1;
 		}
-		printf("zephyr arm %u %u -> ok\n", period, count);
+		printf("Linux asked Zephyr to arm PRU1, and Zephyr published period %u count %u for PRU0\n",
+		       period, count);
 		fflush(stdout);
 		return 0;
 	}
@@ -273,11 +281,12 @@ static int erpc_line(const char *line)
 			return -1;
 		}
 		if (pb2_erpc_xy(x, y)) {
-			printf("zephyr xy failed\n");
+			printf("Linux asked Zephyr to publish X/Y, and Zephyr failed\n");
 			fflush(stdout);
 			return -1;
 		}
-		printf("zephyr xy %u %u -> ok\n", x, y);
+		printf("Linux asked Zephyr to publish X/Y %u %u, and Zephyr sent that pair to PRU0\n",
+		       x, y);
 		fflush(stdout);
 		return 0;
 	}
@@ -328,8 +337,6 @@ static int erpc_main(int argc, char **argv)
 			if (chunk[i] == '\n') {
 				line[fill] = '\0';
 				if (fill) {
-					printf("zephyr -> %s\n", line);
-					fflush(stdout);
 					erpc_line(line);
 				}
 				fill = 0;
@@ -368,7 +375,23 @@ static int send_to(int fd, const char *who, const char *msg)
 		perror(who);
 		return -1;
 	}
-	printf("linux -> %s: %s\n", who, msg);
+	if (!strcmp(who, "pru0") && !strncmp(msg, "xy ", 3)) {
+		printf("Linux asked PRU0 to publish X/Y %s\n", msg + 3);
+	} else if (!strcmp(who, "pru0") && !strncmp(msg, "arm ", 4)) {
+		printf("Linux asked PRU0 to arm PRU1 %s\n", msg + 4);
+	} else if (!strcmp(who, "pru0")) {
+		printf("Linux sent \"%s\" to PRU0\n", msg);
+	} else if (!strcmp(who, "zephyr") && !strncmp(msg, "xy ", 3)) {
+		printf("Linux asked Zephyr to publish X/Y %s\n", msg + 3);
+	} else if (!strcmp(who, "zephyr") && !strncmp(msg, "arm ", 4)) {
+		printf("Linux asked Zephyr to arm PRU1 %s\n", msg + 4);
+	} else if (!strcmp(who, "zephyr") && !strncmp(msg, "chunk ", 6)) {
+		printf("Linux asked Zephyr to check chunk %s\n", msg + 6);
+	} else if (!strcmp(who, "zephyr") && !strncmp(msg, "say ", 4)) {
+		printf("Linux asked Zephyr to say %s\n", msg + 4);
+	} else {
+		printf("Linux sent %s %s\n", who, msg);
+	}
 	fflush(stdout);
 	return 0;
 }

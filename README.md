@@ -151,7 +151,7 @@ The pin is header P1.20, ball Y24, pad offset `0x00cc`, mux mode 2 (`PR0_PRU1_GP
 
 Source: `beagle-linux/linux/k3-am62-pocketbeagle2-pru1-xy.dtso`. `./beagle-linux/scripts/build.sh linux` builds the blob with `dtc` next to the SPI overlay. Copy it to `/boot/firmware/overlays/` and add it to `fdtoverlays` on the default extlinux label, the same way as the SPI overlay. The PRUSS node takes that pin group. The pad does not change until the next boot. This repository does not include a capture of P1.20.
 
-From the linux window the commands are `pru0 xy <x> <y>` and `zephyr xy <x> <y>`. PRU0's RPMsg reply has the shape `pru0: xy seq N x X y Y`. `pb2-ipc xy` prints the shared record, including `consumed`.
+From the linux window the commands are `pru0 xy <x> <y>` and `zephyr xy <x> <y>`. PRU0's RPMsg reply names who asked and what it wrote for PRU1. `pb2-ipc xy` prints the shared record, including `consumed`.
 
 ## Run
 
@@ -170,6 +170,19 @@ pb2-demo --attach --tmux
 ```
 
 `--tmux` is the four-window session `pb2` (`linux`, `zephyr`, `pru0`, `pru1`). `--attach` does not stop or start any core. If session `pb2` is already up, `--attach` attaches to it.
+
+### tmux
+
+The prefix is Ctrl+b. These are windows, not panes. `pb2-demo` creates them in this order:
+
+| After Ctrl+b | Window |
+| --- | --- |
+| 0 | `linux` |
+| 1 | `zephyr` |
+| 2 | `pru0` |
+| 3 | `pru1` |
+
+Detach, which leaves the session running and returns you to the shell: Ctrl+b, then d. Attach again with `tmux attach -t pb2`.
 
 The script needs root or sudo to stop and start the M4 and the two PRUs, insert `pru_rproc.ko` when the running kernel is missing `pru_rproc_kick`, and grant `pb2-ipc` `CAP_SYS_RAWIO` so it can open `/dev/mem`. From the Linux console: `zephyr say <text>`, `zephyr arm <period> <count>`, `zephyr chunk <text>`, `zephyr xy <x> <y>`, `pru0 xy <x> <y>`, or `pru0 <text>`. `zephyr arm` asks PRU0, through the mailbox, to arm PRU1. `pru0 arm <period> <count>` does that directly. `chunk` writes the bulk region and then calls Zephyr to check it. `xy` hands PRU0 the pair described above.
 
@@ -192,85 +205,71 @@ ssh "$PB2_SSH" 'sudo install -m 0755 /tmp/pb2-ipc /tmp/pb2-demo /usr/bin/ \
 
 ## What a passing run looks like
 
-These are `tmux capture-pane` lines from one run of the current images. Prompts are omitted. The P1.20 overlay was not installed, and the wire was not scoped. On an earlier SPI check, `pb2-spi` wrote 5 bytes on `/dev/spidev0.0` and the Zephyr mailbox read `spi hello ok`. The Saleae was not connected.
+These are `tmux capture-pane -J` lines from one run. Prompts are omitted. The typed command is the line above each Linux sentence. The P1.20 overlay was not installed, and the wire was not scoped. On an earlier SPI check, `pb2-spi` wrote 5 bytes on `/dev/spidev0.0` and the Zephyr mailbox read `spi hello ok`. The Saleae was not connected.
 
 Linux:
 
 ```
-linux -> pru0: xy 17 29
+opening /tmp/pb2-demo/zephyr.in
+opening /tmp/pb2-demo/pru0.in
+Linux sent "ping" to PRU0
+Linux asked Zephyr to say hello from linux
+Linux asked Zephyr to arm PRU1 100000 30
+Linux asked Zephyr to check chunk bulk-hello
+Linux asked PRU0 to arm PRU1 250000 20
+linux window ready. commands: zephyr say|arm|chunk|xy ... | pru0 <text>
+pru0 xy 17 29
+Linux asked PRU0 to publish X/Y 17 29
 zephyr xy 41 83
-linux -> zephyr: xy 41 83
-pru0 xy 100 7
-linux -> pru0: xy 100 7
-zephyr xy 2 9
-linux -> zephyr: xy 2 9
-pru0 xy 8 13
-linux -> pru0: xy 8 13
-zephyr xy 4 6
-linux -> zephyr: xy 4 6
-pru0 xy 15 16
-linux -> pru0: xy 15 16
-zephyr xy 20 21
-linux -> zephyr: xy 20 21
-pru0 xy 3 11
-linux -> pru0: xy 3 11
-zephyr xy 12 18
-linux -> zephyr: xy 12 18
+Linux asked Zephyr to publish X/Y 41 83
+pru0 arm 250000 20
+Linux asked PRU0 to arm PRU1 250000 20
+zephyr arm 100000 30
+Linux asked Zephyr to arm PRU1 100000 30
+zephyr chunk bulk-hello
+Linux asked Zephyr to check chunk bulk-hello
+zephyr say hello from linux
+Linux asked Zephyr to say hello from linux
 ```
 
 Zephyr:
 
 ```
-zephyr -> xy 41 83
-zephyr xy 41 83 -> ok
-zephyr -> xy 2 9
-zephyr xy 2 9 -> ok
-zephyr -> xy 4 6
-zephyr xy 4 6 -> ok
-zephyr -> xy 20 21
-zephyr xy 20 21 -> ok
-zephyr -> xy 12 18
-zephyr xy 12 18 -> ok
+zephyr window ready on /dev/rpmsg0 (eRPC)
+Linux asked Zephyr to say "hello from linux", and Zephyr replied "zephyr: hello from linux"
+Linux asked Zephyr to arm PRU1, and Zephyr published period 100000 count 30 for PRU0
+Linux asked Zephyr to check the chunk, and Zephyr matched seq 1 len 10 crc c959d039
+Linux asked Zephyr to publish X/Y 41 83, and Zephyr sent that pair to PRU0
+Linux asked Zephyr to arm PRU1, and Zephyr published period 100000 count 30 for PRU0
+Linux asked Zephyr to check the chunk, and Zephyr matched seq 2 len 10 crc c959d039
+Linux asked Zephyr to say "hello from linux", and Zephyr replied "zephyr: hello from linux"
 ```
 
 PRU0:
 
 ```
-pru0 -> xy 17 29
-pru0 <- pru0: xy seq 2 x 17 y 29
-pru0 <- pru0: shm 4 xy 41 83
-pru0 -> xy 100 7
-pru0 <- pru0: xy seq 4 x 100 y 7
-pru0 <- pru0: shm 5 xy 2 9
-pru0 -> xy 8 13
-pru0 <- pru0: xy seq 6 x 8 y 13
-pru0 <- pru0: shm 6 xy 4 6
-pru0 -> xy 15 16
-pru0 <- pru0: xy seq 8 x 15 y 16
-pru0 <- pru0: shm 7 xy 20 21
-pru0 -> xy 3 11
-pru0 <- pru0: xy seq 10 x 3 y 11
-pru0 <- pru0: shm 8 xy 12 18
+pru0 window ready on /dev/rpmsg2
+sent to pru0: ping
+Linux sent "ping" to PRU0, and PRU0 echoed it
+Zephyr asked PRU0 to arm PRU1, and PRU0 wrote period 100000 count 30 for PRU1
+sent to pru0: arm 250000 20
+Linux asked PRU0 to arm PRU1, and PRU0 wrote period 250000 count 20 for PRU1
+sent to pru0: xy 17 29
+Linux asked PRU0 to publish X/Y, and PRU0 wrote x 17 y 29 seq 1 for PRU1
+Zephyr asked PRU0 to publish X/Y, and PRU0 wrote x 41 y 83 seq 2 for PRU1
+sent to pru0: arm 250000 20
+Linux asked PRU0 to arm PRU1, and PRU0 wrote period 250000 count 20 for PRU1
+Zephyr asked PRU0 to arm PRU1, and PRU0 wrote period 100000 count 30 for PRU1
 ```
 
-PRU1, later in the same run. `consumed` matches `seq`:
+PRU1, from the same run. `consumed` matches `seq` for the pair Zephyr published:
 
 ```
-pru1 tick=9385 done=20 applied_seq=2 period=250000 arm_seq=2
-pru1 xy magic=50423258 seq=7 x=4 y=6 consumed=7
-pru1 tick moved 9187 -> 9385
-pru1 tick=9584 done=20 applied_seq=2 period=250000 arm_seq=2
-pru1 xy magic=50423258 seq=8 x=15 y=16 consumed=8
-pru1 tick moved 9385 -> 9584
-pru1 tick=9783 done=20 applied_seq=2 period=250000 arm_seq=2
-pru1 xy magic=50423258 seq=8 x=15 y=16 consumed=8
-pru1 tick moved 9584 -> 9783
-pru1 tick=9982 done=20 applied_seq=2 period=250000 arm_seq=2
-pru1 xy magic=50423258 seq=9 x=20 y=21 consumed=9
-pru1 tick moved 9783 -> 9982
-pru1 tick=10182 done=20 applied_seq=2 period=250000 arm_seq=2
-pru1 xy magic=50423258 seq=9 x=20 y=21 consumed=9
-pru1 tick moved 9982 -> 10182
+pru1 xy magic=50423258 seq=2 x=41 y=83 consumed=2
+pru1 tick moved 49783 -> 50282
+pru1 tick=50780 done=30 applied_seq=4 period=100000 arm_seq=4
+pru1 xy magic=50423258 seq=2 x=41 y=83 consumed=2
+pru1 tick moved 50282 -> 50780
 ```
 
 ## Checked in and temporary
