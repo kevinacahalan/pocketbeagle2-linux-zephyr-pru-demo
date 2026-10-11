@@ -84,13 +84,13 @@ The kernel module is `./beagle-linux/scripts/build.sh kmod` and needs the Debian
 
    Output: `build/zephyr/pb2_m4.elf`.
 
-4. Patched `pru_rproc`, only for the Debian path. The stock module has no virtio kick, so PRU0's RPMsg firmware will not boot until this module is loaded. The script rsyncs `/usr/src/linux-headers-$PB2_KREL` from `$PB2_SSH` into `.cache/` once, then cross-compiles in the Linux image. `PB2_SSH` is required. `PB2_KREL` defaults to `6.18.52-arm64-k3-r56`; set it to `uname -r` on the board when that differs.
+4. Patched `pru_rproc`, only for the Debian image. The stock module has no virtio kick, so PRU0's RPMsg firmware will not boot until this module is loaded. The script rsyncs `/usr/src/linux-headers-$PB2_KREL` from `$PB2_SSH` into `.cache/` once, then cross-compiles in the Linux image.
 
    ```
-   PB2_SSH=user@board ./beagle-linux/scripts/build.sh kmod
+   ./beagle-linux/scripts/build.sh kmod
    ```
 
-   Output: `beagle-linux/kernel/pru_rproc/pru_rproc.ko`.
+   Output: `beagle-linux/kernel/pru_rproc/pru_rproc.ko`. `PB2_SSH` is the Debian login you chose, and `PB2_KREL` must be `uname -r` on that board.
 
 ### Common problems
 

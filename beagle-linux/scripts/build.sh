@@ -82,8 +82,8 @@ build_kmod() {
 	local headers=$CACHE/linux-headers-$krel
 	local host=${PB2_SSH:-}
 	if [[ -z $host ]]; then
-		echo "Set PB2_SSH to user@board (the board must have the matching kernel headers)." >&2
-		echo "Set PB2_KREL if uname -r on the board is not $krel." >&2
+		echo "Set PB2_SSH to the Debian login you chose. The board must have the matching kernel headers." >&2
+		echo "PB2_KREL must be uname -r on that board." >&2
 		exit 1
 	fi
 	build_image "$IMAGE_LINUX" "$ROOT/containers/linux/Containerfile"
