@@ -57,6 +57,7 @@ static void print_help(void)
 	printf("  zephyr arm <period> <count>\n");
 	printf("  zephyr chunk <text>\n");
 	printf("  zephyr xy <x> <y>\n");
+	printf("  zephyr spi [text]\n");
 	printf("  pru0 <text>\n");
 	printf("  spi\n");
 	printf("  help\n");
@@ -349,7 +350,31 @@ static int erpc_line(const char *line)
 		fflush(stdout);
 		return 0;
 	}
-	printf("zephyr commands: say <text> | arm <period> <count> | chunk <text> | xy <x> <y>\n");
+	if (!strcmp(line, "spi") || !strncmp(line, "spi ", 4)) {
+		char text[512];
+		char shown[800];
+		const char *label;
+
+		text[0] = '\0';
+		if (!strncmp(line, "spi ", 4)) {
+			snprintf(text, sizeof(text), "%s", line + 4);
+			unquote(text);
+		}
+		label = text[0] ? text : "hello";
+		if (pb2_erpc_spi(text, reply, sizeof(reply))) {
+			snprintf(shown, sizeof(shown),
+				 "Linux asked Zephyr to write SPI2 \"%s\", and Zephyr failed",
+				 label);
+			note_line(shown);
+			return -1;
+		}
+		snprintf(shown, sizeof(shown),
+			 "Linux asked Zephyr to write SPI2 \"%s\", and Zephyr replied \"%s\"",
+			 label, reply);
+		note_line(shown);
+		return 0;
+	}
+	printf("zephyr commands: say <text> | arm <period> <count> | chunk <text> | xy <x> <y> | spi [text]\n");
 	fflush(stdout);
 	return -1;
 }
@@ -431,6 +456,39 @@ static int open_out(const char *dir, const char *name)
 	return fd;
 }
 
+static void print_reply(void)
+{
+	char reply[700];
+	struct pollfd pf;
+	size_t fill = 0;
+
+	fflush(stdout);
+	if (g_reply_fd < 0) {
+		return;
+	}
+	pf.fd = g_reply_fd;
+	pf.events = POLLIN;
+	while (fill + 1 < sizeof(reply)) {
+		ssize_t got;
+		char c;
+
+		if (poll(&pf, 1, 3000) <= 0) {
+			break;
+		}
+		got = read(g_reply_fd, &c, 1);
+		if (got <= 0) {
+			break;
+		}
+		if (c == '\n') {
+			reply[fill] = '\0';
+			printf("%s\n", reply);
+			fflush(stdout);
+			return;
+		}
+		reply[fill++] = c;
+	}
+}
+
 static int send_to(int fd, const char *who, const char *msg)
 {
 	char buf[480];
@@ -457,36 +515,17 @@ static int send_to(int fd, const char *who, const char *msg)
 	} else if (!strcmp(who, "zephyr") && !strncmp(msg, "chunk ", 6)) {
 		printf("Linux asked Zephyr to check chunk %s\n", msg + 6);
 	} else if (!strcmp(who, "zephyr") && !strncmp(msg, "say ", 4)) {
-		char reply[700];
-		struct pollfd pf;
-		size_t fill = 0;
-
 		printf("Linux asked Zephyr to say %s\n", msg + 4);
-		fflush(stdout);
-		if (g_reply_fd < 0) {
-			return 0;
+		print_reply();
+		return 0;
+	} else if (!strcmp(who, "zephyr") &&
+		   (!strcmp(msg, "spi") || !strncmp(msg, "spi ", 4))) {
+		if (!strcmp(msg, "spi") || msg[4] == '\0') {
+			printf("Linux asked Zephyr to write SPI2 hello\n");
+		} else {
+			printf("Linux asked Zephyr to write SPI2 %s\n", msg + 4);
 		}
-		pf.fd = g_reply_fd;
-		pf.events = POLLIN;
-		while (fill + 1 < sizeof(reply)) {
-			ssize_t got;
-			char c;
-
-			if (poll(&pf, 1, 3000) <= 0) {
-				break;
-			}
-			got = read(g_reply_fd, &c, 1);
-			if (got <= 0) {
-				break;
-			}
-			if (c == '\n') {
-				reply[fill] = '\0';
-				printf("%s\n", reply);
-				fflush(stdout);
-				return 0;
-			}
-			reply[fill++] = c;
-		}
+		print_reply();
 		return 0;
 	} else {
 		printf("Linux sent %s %s\n", who, msg);
@@ -605,7 +644,7 @@ static int linux_main(int argc, char **argv)
 		return 1;
 	}
 
-	printf("linux window ready. commands: zephyr say|arm|chunk|xy ... | pru0 <text> | spi | help\n");
+	printf("linux window ready. commands: zephyr say|arm|chunk|xy|spi ... | pru0 <text> | spi | help\n");
 	fflush(stdout);
 
 	while (fgets(input, sizeof(input), stdin)) {
@@ -642,20 +681,20 @@ static int linux_main(int argc, char **argv)
 		}
 		msg = strchr(input, ' ');
 		if (!msg) {
-			printf("use zephyr say|arm|chunk|xy ... or pru0 <text> or spi or help\n");
+			printf("use zephyr say|arm|chunk|xy|spi ... or pru0 <text> or spi or help\n");
 			fflush(stdout);
 			continue;
 		}
 		*msg++ = '\0';
 		if (!strcmp(input, "zephyr")) {
-			if (!strncmp(msg, "say ", 4)) {
+			if (!strncmp(msg, "say ", 4) || !strncmp(msg, "spi ", 4)) {
 				unquote(msg + 4);
 			}
 			send_to(zephyr, "zephyr", msg);
 		} else if (!strcmp(input, "pru0")) {
 			send_to(pru0, "pru0", msg);
 		} else {
-			printf("use zephyr say|arm|chunk|xy ... or pru0 <text> or spi or help\n");
+			printf("use zephyr say|arm|chunk|xy|spi ... or pru0 <text> or spi or help\n");
 			fflush(stdout);
 		}
 	}

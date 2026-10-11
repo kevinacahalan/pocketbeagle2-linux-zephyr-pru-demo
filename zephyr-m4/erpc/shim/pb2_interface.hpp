@@ -23,6 +23,7 @@ class Pb2Service_interface
         static const uint8_t m_armPru1Id = 2;
         static const uint8_t m_takeChunkId = 3;
         static const uint8_t m_sendXyId = 4;
+        static const uint8_t m_spiWriteId = 5;
 
         virtual ~Pb2Service_interface(void);
 
@@ -33,6 +34,8 @@ class Pb2Service_interface
         virtual uint32_t takeChunk(uint32_t seq, uint32_t length, uint32_t crc) = 0;
 
         virtual int32_t sendXy(uint32_t x, uint32_t y) = 0;
+
+        virtual char * spiWrite(const char * text) = 0;
 private:
 };
 } // erpcShim

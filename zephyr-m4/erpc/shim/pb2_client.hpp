@@ -30,6 +30,8 @@ class Pb2Service_client: public Pb2Service_interface
 
         virtual int32_t sendXy(uint32_t x, uint32_t y);
 
+        virtual char * spiWrite(const char * text);
+
     protected:
         erpc::ClientManager *m_clientManager;
 };

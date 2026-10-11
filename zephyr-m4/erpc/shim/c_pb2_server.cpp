@@ -52,6 +52,14 @@ class Pb2Service_server: public Pb2Service_interface
 
             return result;
         }
+
+        char * spiWrite(const char * text)
+        {
+            char * result = NULL;
+            result = ::spiWrite(text);
+
+            return result;
+        }
 };
 
 ERPC_MANUALLY_CONSTRUCTED_STATIC(Pb2Service_service, s_Pb2Service_service);

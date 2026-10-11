@@ -288,3 +288,69 @@ int32_t Pb2Service_client::sendXy(uint32_t x, uint32_t y)
 
     return result;
 }
+
+char * Pb2Service_client::spiWrite(const char * text)
+{
+    erpc_status_t err = kErpcStatus_Success;
+
+    char * result = NULL;
+
+#if ERPC_PRE_POST_ACTION
+    pre_post_action_cb preCB = m_clientManager->getPreCB();
+    if (preCB)
+    {
+        preCB();
+    }
+#endif
+
+    RequestContext request = m_clientManager->createRequest(false);
+    Codec * codec = request.getCodec();
+
+    if (codec == NULL)
+    {
+        err = kErpcStatus_MemoryError;
+    }
+    else
+    {
+        codec->startWriteMessage(message_type_t::kInvocationMessage, m_serviceId, m_spiWriteId, request.getSequence());
+
+        {
+            uint32_t text_len = strlen((const char*)text);
+
+            codec->writeString(text_len, (const char*)text);
+        }
+
+        m_clientManager->performRequest(request);
+
+        {
+            uint32_t return_len;
+            char * return_local;
+            codec->readString(return_len, &return_local);
+            result = (char*) erpc_malloc((return_len + 1) * sizeof(char));
+            if ((result == NULL) || (return_local == NULL))
+            {
+                codec->updateStatus(kErpcStatus_MemoryError);
+            }
+            else
+            {
+                memcpy(result, return_local, return_len);
+                (result)[return_len] = 0;
+            }
+        }
+
+        err = codec->getStatus();
+    }
+
+    m_clientManager->releaseRequest(request);
+    m_clientManager->callErrorHandler(err, m_spiWriteId);
+
+#if ERPC_PRE_POST_ACTION
+    pre_post_action_cb postCB = m_clientManager->getPostCB();
+    if (postCB)
+    {
+        postCB();
+    }
+#endif
+
+    return result;
+}

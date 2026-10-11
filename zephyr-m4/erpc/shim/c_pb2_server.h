@@ -29,6 +29,7 @@ enum _Pb2Service_ids
     kPb2Service_armPru1_id = 2,
     kPb2Service_takeChunk_id = 3,
     kPb2Service_sendXy_id = 4,
+    kPb2Service_spiWrite_id = 5,
 };
 
 //! @name Pb2Service
@@ -40,6 +41,8 @@ int32_t armPru1(uint32_t periodCycles, uint32_t periods);
 uint32_t takeChunk(uint32_t seq, uint32_t length, uint32_t crc);
 
 int32_t sendXy(uint32_t x, uint32_t y);
+
+char * spiWrite(const char * text);
 //@}
 
 

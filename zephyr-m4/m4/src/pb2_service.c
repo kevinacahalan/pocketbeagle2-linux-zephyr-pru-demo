@@ -8,6 +8,7 @@
 #include <zephyr/cache.h>
 #include <zephyr/logging/log.h>
 
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -37,6 +38,41 @@ char *say(const char *msg)
 	}
 	snprintf(out, n + 16, "zephyr: %.*s", (int)n, msg);
 	LOG_INF("erpc say: %s", out);
+	return out;
+}
+
+char *spiWrite(const char *text)
+{
+	static const uint8_t hello[] = {'h', 'e', 'l', 'l', 'o'};
+	uint8_t buf[256];
+	const uint8_t *src;
+	size_t n;
+	int ret;
+	char *out;
+
+	if (!text || !text[0]) {
+		src = hello;
+		n = sizeof(hello);
+	} else {
+		n = strlen(text);
+		if (n > sizeof(buf)) {
+			n = sizeof(buf);
+		}
+		memcpy(buf, text, n);
+		src = buf;
+	}
+	ret = pb2_spi2_write(src, n);
+	out = k_malloc(64);
+	if (!out) {
+		return NULL;
+	}
+	if (ret) {
+		snprintf(out, 64, "zephyr: spi wrote 0 bytes");
+		LOG_ERR("erpc spi fail %d", ret);
+		return out;
+	}
+	snprintf(out, 64, "zephyr: spi wrote %u bytes", (unsigned int)n);
+	LOG_INF("%s", out);
 	return out;
 }
 

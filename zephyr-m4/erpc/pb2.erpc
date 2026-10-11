@@ -9,4 +9,5 @@ interface Pb2Service {
     armPru1(in uint32 periodCycles, in uint32 periods) -> int32
     takeChunk(in uint32 seq, in uint32 length, in uint32 crc) -> uint32
     sendXy(in uint32 x, in uint32 y) -> int32
+    spiWrite(in string text) -> string
 }

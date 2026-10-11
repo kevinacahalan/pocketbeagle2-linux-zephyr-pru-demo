@@ -52,6 +52,14 @@ int32_t sendXy(uint32_t x, uint32_t y)
     return result;
 }
 
+char * spiWrite(const char * text)
+{
+    char * result = NULL;
+    result = s_Pb2Service_client->spiWrite(text);
+
+    return result;
+}
+
 void initPb2Service_client(erpc_client_t client)
 {
 #if ERPC_ALLOCATION_POLICY == ERPC_ALLOCATION_POLICY_DYNAMIC

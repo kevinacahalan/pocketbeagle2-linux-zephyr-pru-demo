@@ -15,6 +15,8 @@
 #include <zephyr/cache.h>
 #include <zephyr/logging/log.h>
 
+#include <errno.h>
+
 #include <openamp/open_amp.h>
 #include <metal/sys.h>
 #include <metal/io.h>
@@ -232,7 +234,7 @@ static void rpmsg_thread(void *a, void *b, void *c)
 K_THREAD_DEFINE(rpmsg_tid, 4096, rpmsg_thread, NULL, NULL, NULL, K_PRIO_COOP(8), 0, 0);
 K_THREAD_DEFINE(app_tid, 8192, app_thread, NULL, NULL, NULL, K_PRIO_COOP(7), 0, 0);
 
-static void pb2_spi_hello(void)
+int pb2_spi2_write(const void *buf, size_t len)
 {
 	static const struct spi_config cfg = {
 		.frequency = 1000000,
@@ -240,26 +242,36 @@ static void pb2_spi_hello(void)
 		.slave = 0,
 	};
 	const struct device *spi = DEVICE_DT_GET(DT_NODELABEL(main_spi2));
-	static const uint8_t hello[] = {'h', 'e', 'l', 'l', 'o'};
 	const struct spi_buf txb = {
-		.buf = (void *)hello,
-		.len = sizeof(hello),
+		.buf = (void *)buf,
+		.len = len,
 	};
 	const struct spi_buf_set tx = {
 		.buffers = &txb,
 		.count = 1,
 	};
-	int ret;
 
+	if (!buf || !len) {
+		return -EINVAL;
+	}
 	if (!device_is_ready(spi)) {
 		LOG_ERR("spi2 not ready");
+		return -ENODEV;
+	}
+	return spi_write(spi, &cfg, &tx);
+}
+
+static void pb2_spi_hello(void)
+{
+	static const uint8_t hello[] = {'h', 'e', 'l', 'l', 'o'};
+	int ret = pb2_spi2_write(hello, sizeof(hello));
+	char msg[56];
+
+	if (ret == -ENODEV) {
 		pb2_shm_publish("spi hello not ready");
 		return;
 	}
-	ret = spi_write(spi, &cfg, &tx);
 	if (ret) {
-		char msg[56];
-
 		LOG_ERR("spi2 hello failed: %d", ret);
 		snprintk(msg, sizeof(msg), "spi hello fail %d", ret);
 		pb2_shm_publish(msg);

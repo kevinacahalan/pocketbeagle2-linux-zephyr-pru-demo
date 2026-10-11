@@ -101,6 +101,18 @@ extern "C" int pb2_erpc_say(const char *msg, char *out, size_t outlen)
 	return 0;
 }
 
+extern "C" int pb2_erpc_spi(const char *text, char *out, size_t outlen)
+{
+	char *reply = spiWrite(text ? text : "");
+
+	if (!reply) {
+		return -1;
+	}
+	snprintf(out, outlen, "%s", reply);
+	erpc_free(reply);
+	return 0;
+}
+
 extern "C" int pb2_erpc_arm(uint32_t period, uint32_t count)
 {
 	int32_t rc = armPru1(period, count);

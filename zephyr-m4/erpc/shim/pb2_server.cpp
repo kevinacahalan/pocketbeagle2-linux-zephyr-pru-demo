@@ -72,6 +72,12 @@ erpc_status_t Pb2Service_service::handleInvocation(uint32_t methodId, uint32_t s
             break;
         }
 
+        case Pb2Service_interface::m_spiWriteId:
+        {
+            erpcStatus = spiWrite_shim(codec, messageFactory, transport, sequence);
+            break;
+        }
+
         default:
         {
             erpcStatus = kErpcStatus_InvalidArgument;
@@ -276,6 +282,62 @@ erpc_status_t Pb2Service_service::sendXy_shim(Codec * codec, MessageBufferFactor
         codec->write(result);
         err = codec->getStatus();
     }
+
+    return err;
+}
+
+erpc_status_t Pb2Service_service::spiWrite_shim(Codec * codec, MessageBufferFactory *messageFactory, Transport * transport, uint32_t sequence)
+{
+    erpc_status_t err = kErpcStatus_Success;
+
+    char * text = NULL;
+    char * result = NULL;
+
+    {
+        uint32_t text_len;
+        char * text_local;
+        codec->readString(text_len, &text_local);
+        text = (char*) erpc_malloc((text_len + 1) * sizeof(char));
+        if ((text == NULL) || (text_local == NULL))
+        {
+            codec->updateStatus(kErpcStatus_MemoryError);
+        }
+        else
+        {
+            memcpy(text, text_local, text_len);
+            (text)[text_len] = 0;
+        }
+    }
+
+    err = codec->getStatus();
+    if (err == kErpcStatus_Success)
+    {
+#if ERPC_NESTED_CALLS_DETECTION
+        nestingDetection = true;
+#endif
+        result = m_handler->spiWrite(text);
+#if ERPC_NESTED_CALLS_DETECTION
+        nestingDetection = false;
+#endif
+        err = messageFactory->prepareServerBufferForSend(codec->getBufferRef(), transport->reserveHeaderSize());
+    }
+
+    if (err == kErpcStatus_Success)
+    {
+        codec->reset(transport->reserveHeaderSize());
+        codec->startWriteMessage(message_type_t::kReplyMessage, Pb2Service_interface::m_serviceId, Pb2Service_interface::m_spiWriteId, sequence);
+
+        {
+            uint32_t return_len = strlen((const char*)result);
+
+            codec->writeString(return_len, (const char*)result);
+        }
+
+        err = codec->getStatus();
+    }
+
+    erpc_free(text);
+    erpc_free(result);
 
     return err;
 }
