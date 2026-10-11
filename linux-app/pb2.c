@@ -2,11 +2,13 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/spi/spidev.h>
 #include <poll.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -14,20 +16,23 @@
 #include "pb2_shm.h"
 
 /*
- * pb2-ipc peer <label> <rpmsg-dev> <fifo>
+ * pb2 peer <label> <rpmsg-dev> <fifo>
  *   Owns one RPMsg device. Used for PRU0.
  *
- * pb2-ipc erpc <rpmsg-dev> <fifo>
+ * pb2 erpc <rpmsg-dev> <fifo>
  *   Calls Zephyr functions over eRPC on the existing RPMsg fd.
  *
- * pb2-ipc watch
+ * pb2 watch
  *   Prints PRU1's shared-RAM status. PRU1 has no RPMsg endpoint.
  *
- * pb2-ipc xy
+ * pb2 xy
  *   Prints the shared-RAM X/Y record once and exits.
  *
- * pb2-ipc linux <dir>
- *   Sends the startup script, then reads commands such as xy.
+ * pb2 spi [device]
+ *   Clocks the five-byte SPI hello. Default device is /dev/spidev0.0.
+ *
+ * pb2 linux <dir>
+ *   Sends the startup script, then reads commands such as xy and spi.
  */
 
 static int write_all(int fd, const void *buf, size_t len)
@@ -396,6 +401,50 @@ static int send_to(int fd, const char *who, const char *msg)
 	return 0;
 }
 
+static int spi_hello(const char *dev)
+{
+	const uint8_t tx[] = {'h', 'e', 'l', 'l', 'o'};
+	uint8_t rx[sizeof(tx)];
+	uint8_t mode = SPI_MODE_0;
+	uint8_t bits = 8;
+	uint32_t speed = 1000000;
+	int fd;
+
+	if (!dev || !dev[0]) {
+		dev = "/dev/spidev0.0";
+	}
+	fd = open(dev, O_RDWR);
+	if (fd < 0) {
+		fprintf(stderr, "open %s: %s\n", dev, strerror(errno));
+		return 1;
+	}
+	if (ioctl(fd, SPI_IOC_WR_MODE, &mode) < 0 ||
+	    ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &bits) < 0 ||
+	    ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed) < 0) {
+		fprintf(stderr, "spi setup: %s\n", strerror(errno));
+		close(fd);
+		return 1;
+	}
+
+	memset(rx, 0, sizeof(rx));
+	struct spi_ioc_transfer tr = {
+		.tx_buf = (unsigned long)tx,
+		.rx_buf = (unsigned long)rx,
+		.len = sizeof(tx),
+		.speed_hz = speed,
+		.bits_per_word = bits,
+	};
+	if (ioctl(fd, SPI_IOC_MESSAGE(1), &tr) < 0) {
+		fprintf(stderr, "spi transfer: %s\n", strerror(errno));
+		close(fd);
+		return 1;
+	}
+	printf("Linux wrote the SPI hello, %zu bytes on %s\n", sizeof(tx), dev);
+	fflush(stdout);
+	close(fd);
+	return 0;
+}
+
 static int xy_main(void)
 {
 	volatile struct pb2_arm *base = map_phys(PB2_ARM_CPU, 4096);
@@ -448,7 +497,7 @@ static int linux_main(int argc, char **argv)
 		return 1;
 	}
 
-	printf("linux window ready. commands: zephyr say|arm|chunk|xy ... | pru0 <text>\n");
+	printf("linux window ready. commands: zephyr say|arm|chunk|xy ... | pru0 <text> | spi\n");
 	fflush(stdout);
 
 	while (fgets(input, sizeof(input), stdin)) {
@@ -461,9 +510,27 @@ static int linux_main(int argc, char **argv)
 		if (!len || input[0] == '#') {
 			continue;
 		}
+		if (!strcmp(input, "quit")) {
+			break;
+		}
+		if (!strcmp(input, "spi") || !strncmp(input, "spi ", 4)) {
+			const char *dev = "/dev/spidev0.0";
+
+			if (!strncmp(input, "spi ", 4)) {
+				dev = input + 4;
+				while (*dev == ' ') {
+					dev++;
+				}
+				if (!*dev) {
+					dev = "/dev/spidev0.0";
+				}
+			}
+			spi_hello(dev);
+			continue;
+		}
 		msg = strchr(input, ' ');
 		if (!msg) {
-			printf("use zephyr say|arm|chunk|xy ... or pru0 <text>\n");
+			printf("use zephyr say|arm|chunk|xy ... or pru0 <text> or spi\n");
 			fflush(stdout);
 			continue;
 		}
@@ -472,10 +539,8 @@ static int linux_main(int argc, char **argv)
 			send_to(zephyr, "zephyr", msg);
 		} else if (!strcmp(input, "pru0")) {
 			send_to(pru0, "pru0", msg);
-		} else if (!strcmp(input, "quit")) {
-			break;
 		} else {
-			printf("use zephyr say|arm|chunk|xy ... or pru0 <text>\n");
+			printf("use zephyr say|arm|chunk|xy ... or pru0 <text> or spi\n");
 			fflush(stdout);
 		}
 	}
@@ -485,7 +550,7 @@ static int linux_main(int argc, char **argv)
 int main(int argc, char **argv)
 {
 	if (argc < 2) {
-		fprintf(stderr, "usage: %s peer|erpc|watch|xy|linux ...\n", argv[0]);
+		fprintf(stderr, "usage: %s peer|erpc|watch|xy|spi|linux ...\n", argv[0]);
 		return 2;
 	}
 	if (!strcmp(argv[1], "peer")) {
@@ -499,6 +564,9 @@ int main(int argc, char **argv)
 	}
 	if (!strcmp(argv[1], "xy")) {
 		return xy_main();
+	}
+	if (!strcmp(argv[1], "spi")) {
+		return spi_hello(argc > 2 ? argv[2] : "/dev/spidev0.0");
 	}
 	if (!strcmp(argv[1], "linux")) {
 		return linux_main(argc, argv);

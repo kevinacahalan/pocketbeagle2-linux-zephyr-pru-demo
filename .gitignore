@@ -1,7 +1,7 @@
 # Checked in
 #   README.md, LAYOUT.md, .gitignore
 #   manifest/                         west manifest (workspace topdir is the repo root)
-#   linux-app/                        Linux userspace (pb2-ipc, pb2-spi)
+#   linux-app/                        Linux userspace program (pb2)
 #   beagle-linux/                     Debian overlays, patched pru_rproc, scripts
 #   containers/                       Linux, TI CGT, and Zephyr SDK images
 #   zephyr-m4/                        M4 app and shared mailbox header
@@ -30,8 +30,7 @@ yocto/sstate-cache/
 
 # Build products.
 pru/build/
-linux-app/pb2-ipc
-linux-app/pb2-spi
+linux-app/pb2
 beagle-linux/overlays/*.dtbo
 *.ko
 *.o

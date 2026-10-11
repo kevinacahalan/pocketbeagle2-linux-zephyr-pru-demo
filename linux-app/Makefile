@@ -27,16 +27,13 @@ ERPC_SRCS = \
 	$(SHIM)/pb2_interface.cpp \
 	pb2_erpc_linux.cpp
 
-all: pb2-ipc pb2-spi
+all: pb2
 
-pb2-ipc: pb2-ipc.o $(ERPC_SRCS)
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDES) -o $@ pb2-ipc.o $(ERPC_SRCS)
+pb2: pb2.o $(ERPC_SRCS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDES) -o $@ pb2.o $(ERPC_SRCS)
 
-pb2-ipc.o: pb2-ipc.c pb2_erpc_linux.h
-	$(CC) $(CFLAGS) -I. -I$(ROOT)/zephyr-m4/include -c -o $@ pb2-ipc.c
-
-pb2-spi: pb2-spi.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ pb2-spi.c
+pb2.o: pb2.c pb2_erpc_linux.h
+	$(CC) $(CFLAGS) -I. -I$(ROOT)/zephyr-m4/include -c -o $@ pb2.c
 
 clean:
-	rm -f pb2-ipc pb2-spi pb2-ipc.o
+	rm -f pb2 pb2.o

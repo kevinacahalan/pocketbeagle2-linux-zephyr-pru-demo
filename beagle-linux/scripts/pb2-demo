@@ -196,9 +196,9 @@ if [[ $USE_TMUX -eq 1 ]] && ! command -v tmux >/dev/null 2>&1; then
 	exit 1
 fi
 
-BIN=$(command -v pb2-ipc || true)
+BIN=$(command -v pb2 || true)
 if [[ -z $BIN ]]; then
-	echo "pb2-ipc is not on PATH" >&2
+	echo "pb2 is not on PATH" >&2
 	exit 1
 fi
 
@@ -209,7 +209,7 @@ viewer_pids() {
 		[[ -r /proc/$pid/cmdline ]] || continue
 		cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)
 		case $cmd in
-		*pb2-ipc\ peer*|*pb2-ipc\ erpc*|*pb2-ipc\ watch*|*pb2-ipc\ linux*)
+		*pb2\ peer*|*pb2\ erpc*|*pb2\ watch*|*pb2\ linux*)
 			echo "$pid"
 			;;
 		esac

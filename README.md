@@ -16,7 +16,7 @@ Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`
    ./beagle-linux/scripts/build.sh linux
    ```
 
-   Output: `linux-app/pb2-ipc` and `linux-app/pb2-spi`. The same step builds the Debian overlays in `beagle-linux/overlays/`, including `k3-am62-pocketbeagle2-leftover-gpio.dtbo`. `PINMUX.md` lists every pin those overlays mux.
+   Output: `linux-app/pb2`. That one program is what `pb2-demo` starts. SPI hello is its `spi` command, next to xy, arm, chunk, and say. The same step builds the Debian overlays in `beagle-linux/overlays/`, including `k3-am62-pocketbeagle2-leftover-gpio.dtbo`. `PINMUX.md` lists every pin those overlays mux.
 
 2. PRU firmware, image `pb2-pru-cgt` from `containers/pru-cgt/Containerfile`. The first stage installs TI CGT 2.3.3 on Debian 10, because the installer is a 32-bit stub that needs that older glibc. The second stage is Debian 13 with `clpru` at `/opt/ti-cgt-pru`. The firmware is compiled there.
 
@@ -42,7 +42,7 @@ Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`
 
    Output: `beagle-linux/kernel/pru_rproc/pru_rproc.ko`.
 
-5. Poky image for PocketBeagle 2, with kas-container. The machine, kernel, and layers come from TI's `kas/poky-wrynose-config.yml`. The distro is poky, and the target is `pb2-demo-image` (core-image-minimal plus the demo). The build compiles `pb2-ipc`, `pb2-spi`, the Zephyr M4 ELF, and both PRU firmwares. It does not flash the board, and it does not load or stop `78000000.r5f`.
+5. Poky image for PocketBeagle 2, with kas-container. The machine, kernel, and layers come from TI's `kas/poky-wrynose-config.yml`. The distro is poky, and the target is `pb2-demo-image` (core-image-minimal plus the demo). The build compiles `pb2`, the Zephyr M4 ELF, and both PRU firmwares. It does not flash the board, and it does not load or stop `78000000.r5f`.
 
    From the repo root:
 
@@ -96,7 +96,7 @@ P1.06A (ball AD18), P1.10's other ball A18, and P1.12A (ball AE18) are disabled.
 
 Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtso`.
 
-`./beagle-linux/scripts/build.sh linux` builds it in the Linux userspace image with `dtc`, along with `pb2-ipc` and `pb2-spi`. The blob is `beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo`.
+`./beagle-linux/scripts/build.sh linux` builds it in the Linux userspace image with `dtc`, along with `pb2`. The blob is `beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo`.
 
 The flashed image loads overlays from the boot partition, not from configfs (`/sys/kernel/config` on this image has no device-tree overlays). Copy the blob to `/boot/firmware/overlays/`, then on the default label in `/boot/firmware/extlinux/extlinux.conf` set:
 
@@ -104,13 +104,13 @@ The flashed image loads overlays from the boot partition, not from configfs (`/s
 fdtoverlays /overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo
 ```
 
-That takes effect on the next boot. After that, `pb2-spi` writes `hello` to `/dev/spidev0.0` (main SPI0 is the SPI controller this image enables; the child is `spidev@0` with compatible `rohm,dh2228fv`, which this kernel binds to `spidev`). Pass another path if the node name differs:
+That takes effect on the next boot. After that, the linux window command `spi` writes `hello` to `/dev/spidev0.0` (main SPI0 is the SPI controller this image enables; the child is `spidev@0` with compatible `rohm,dh2228fv`, which this kernel binds to `spidev`). Pass another path if the node name differs:
 
 ```
-./pb2-spi /dev/spidev0.0
+spi /dev/spidev0.0
 ```
 
-The software transfers ran. `pb2-spi` wrote 5 bytes on `/dev/spidev0.0`. With the M4 image running, the DDR mailbox read `spi hello ok`. The Saleae was not connected, so this repository has no logic-analyzer capture of those pins.
+`pb2 spi` does the same transfer and exits. The software transfers ran. The captured line is in "What a passing run looks like" below. With the M4 image running, the DDR mailbox read `spi hello ok` from Zephyr's own SPI2 write. The Saleae was not connected, so this repository has no logic-analyzer capture of those pins.
 
 ## X and Y through PRU0 to PRU1
 
@@ -123,7 +123,7 @@ PRU0 writes the pair into PRUSS shared RAM, not the DDR mailbox. The AM62x linke
 | `0x00` | `0x30050000` | Arm block, 32 bytes. PRU0 writes it. PRU1's timing loop samples it. |
 | `0x40` | `0x30050040` | X/Y record. Still inside the first 256 bytes of shared RAM. |
 
-The record is little-endian `uint32` fields, in this order: `magic`, `seq`, `x`, `y`, `consumed`. Magic is `0x50423258` (`PB2X`). PRU0 stores `x`, then `y`, then the magic, then `seq` last. `consumed` is PRU1's. `pb2-ipc xy` prints the record once. The pru1 window prints it on each sample.
+The record is little-endian `uint32` fields, in this order: `magic`, `seq`, `x`, `y`, `consumed`. Magic is `0x50423258` (`PB2X`). PRU0 stores `x`, then `y`, then the magic, then `seq` last. `consumed` is PRU1's. `pb2 xy` prints the record once. The pru1 window prints it on each sample.
 
 PRU1 is the transmission core. When `seq` changes and the magic matches, it copies X and Y, shifts a frame out, then stores that `seq` in `consumed`. A matching `consumed` means PRU1 finished that sequence. It does not mean a scope saw the pin.
 
@@ -153,7 +153,7 @@ Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtso`. `./beagle-li
 
 Header pins that Linux, Zephyr, and the PRUs do not already use are muxed as input GPIOs by `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtso`. Each of those pins is commented as a leftover. The same `build.sh linux` step writes `k3-am62-pocketbeagle2-leftover-gpio.dtbo`. Load it the same way as the SPI overlay: copy the blob to `/boot/firmware/overlays/` and append it to `fdtoverlays` on the default extlinux label. It is not on the boot list until you add it, and the image recipe does not add it. The full pin list is `PINMUX.md`. None of these pins is an LED.
 
-From the linux window the commands are `pru0 xy <x> <y>` and `zephyr xy <x> <y>`. PRU0's RPMsg reply names who asked and what it wrote for PRU1. `pb2-ipc xy` prints the shared record, including `consumed`.
+From the linux window the commands are `pru0 xy <x> <y>` and `zephyr xy <x> <y>`. PRU0's RPMsg reply names who asked and what it wrote for PRU1. `pb2 xy` prints the shared record, including `consumed`.
 
 ## Run
 
@@ -186,7 +186,7 @@ The prefix is Ctrl+b. These are windows, not panes. `pb2-demo` creates them in t
 
 Detach, which leaves the session running and returns you to the shell: Ctrl+b, then d. Attach again with `tmux attach -t pb2`.
 
-The script needs root or sudo to stop and start the M4 and the two PRUs, insert `pru_rproc.ko` when the running kernel is missing `pru_rproc_kick`, and grant `pb2-ipc` `CAP_SYS_RAWIO` so it can open `/dev/mem`. From the Linux console: `zephyr say <text>`, `zephyr arm <period> <count>`, `zephyr chunk <text>`, `zephyr xy <x> <y>`, `pru0 xy <x> <y>`, or `pru0 <text>`. `zephyr arm` asks PRU0, through the mailbox, to arm PRU1. `pru0 arm <period> <count>` does that directly. `chunk` writes the bulk region and then calls Zephyr to check it. `xy` hands PRU0 the pair described above.
+The script needs root or sudo to stop and start the M4 and the two PRUs, insert `pru_rproc.ko` when the running kernel is missing `pru_rproc_kick`, and grant `pb2` `CAP_SYS_RAWIO` so it can open `/dev/mem`. From the Linux console: `zephyr say <text>`, `zephyr arm <period> <count>`, `zephyr chunk <text>`, `zephyr xy <x> <y>`, `pru0 xy <x> <y>`, `pru0 <text>`, or `spi`. `zephyr arm` asks PRU0, through the mailbox, to arm PRU1. `pru0 arm <period> <count>` does that directly. `chunk` writes the bulk region and then calls Zephyr to check it. `xy` hands PRU0 the pair described above.
 
 The Linux side still sends a startup script before it reads commands: ping PRU0, `say hello from linux`, `arm 100000 30`, `chunk bulk-hello`, then `pru0 arm 250000 20`. That script is not the X/Y measurement below.
 
@@ -194,11 +194,11 @@ The Debian image does not ship this runner. Copy the binaries and firmware into 
 
 ```
 export PB2_SSH=user@board
-scp linux-app/pb2-ipc beagle-linux/scripts/pb2-demo \
+scp linux-app/pb2 beagle-linux/scripts/pb2-demo \
   pru/build/am62x-pru0-fw pru/build/am62x-pru1-fw \
   build/zephyr/pb2_m4.elf \
   "$PB2_SSH":/tmp/
-ssh "$PB2_SSH" 'sudo install -m 0755 /tmp/pb2-ipc /tmp/pb2-demo /usr/bin/ \
+ssh "$PB2_SSH" 'sudo install -m 0755 /tmp/pb2 /tmp/pb2-demo /usr/bin/ \
   && sudo install -m 0644 /tmp/am62x-pru0-fw /tmp/am62x-pru1-fw /lib/firmware/ \
   && sudo install -m 0644 /tmp/pb2_m4.elf /lib/firmware/am62-mcu-m4f0_0-fw'
 ```
@@ -207,7 +207,12 @@ ssh "$PB2_SSH" 'sudo install -m 0755 /tmp/pb2-ipc /tmp/pb2-demo /usr/bin/ \
 
 ## What a passing run looks like
 
-These are `tmux capture-pane -J` lines from one run. Prompts are omitted. The typed command is the line above each Linux sentence. The P1.20 overlay was not installed, and the wire was not scoped. On an earlier SPI check, `pb2-spi` wrote 5 bytes on `/dev/spidev0.0` and the Zephyr mailbox read `spi hello ok`. The Saleae was not connected.
+These are `tmux capture-pane -J` lines. Prompts are omitted. The typed command is the line above each Linux sentence. The P1.20 overlay was not installed, and the wire was not scoped. The Saleae was not connected. The `spi` lines are from the linux window of the run that used this one program:
+
+```
+spi
+Linux wrote the SPI hello, 5 bytes on /dev/spidev0.0
+```
 
 Linux:
 
@@ -286,7 +291,7 @@ Left on disk and not committed:
 | `third_party/` | PRU software support package and EmbeddedRPC clones |
 | `.cache/` | TI CGT install and kernel headers |
 | `pru/build/` | PRU firmware images |
-| `linux-app/pb2-ipc`, `linux-app/pb2-spi` | userspace binaries |
+| `linux-app/pb2` | the userspace program |
 | `*.ko` | kernel modules, including patched `pru_rproc` |
 
 ## Reach the board

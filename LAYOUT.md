@@ -4,7 +4,7 @@ The root keeps this note, `README.md`, `PINMUX.md`, `.gitignore`, `linux-app/`, 
 
 ## Linux app — `linux-app/`
 
-Userspace IPC (`pb2-ipc`, `pb2-spi`). Both the Debian build and the Yocto recipe compile this directory. It is not a board-specific tree.
+One userspace program, `pb2`. SPI hello is a command in that program, next to xy, arm, chunk, and say. Both the Debian build and the Yocto recipe compile this directory and install that one binary. `pb2-demo` is the runner that starts it. It is not a board-specific tree.
 
 ## Beagle Linux — `beagle-linux/`
 
