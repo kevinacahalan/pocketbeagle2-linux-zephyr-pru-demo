@@ -47,7 +47,7 @@
 /*
  * PRU1 shifts each SLIP byte out as UART 8N1 on R30 bit 5.
  * Header P1.20, ball Y24, pad offset 0x00cc, mux mode 2 (PR0_PRU1_GPO5).
- * The PRUSS core clock on this image's mux is 250 MHz.
+ * On the BeagleBoard Debian image the PRUSS core clock is 250 MHz.
  * 250000000 / 115200 is 2170 cycles per bit (about 115207 baud).
  */
 #define PB2_XY_TX_BIT         5u

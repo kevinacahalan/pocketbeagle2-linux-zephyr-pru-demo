@@ -66,7 +66,7 @@ AM62X_IOPAD(0x00cc, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 2) /* (Y24) VOUT0_DAT
 | --- | --- | --- | --- | --- |
 | TX (`PR0_PRU1_GPO5`) | P1.20 | Y24 | `0x00cc` | `0x10002` mode 2 output |
 
-One ball. Not an SPI0 or SPI2 pin. No LED. The wire has not been scoped.
+One ball. Not an SPI0 or SPI2 pin. No LED.
 
 ## Leftover GPIOs
 
@@ -158,7 +158,7 @@ These header pins are not leftovers. The overlay does not take them.
 | P2.25, P2.27, P2.29, P2.29A, P2.31, P2.31A | B14, B13, A14, M22, A13, AA18 | Linux SPI0 |
 | P1.03 | F18 | Board USB1_DRVVBUS, pad `0x0258` mode 0. Not a demo GPIO. |
 
-Power, ground, USB data, and the analog reference pins are not GPIO pads and are not in the overlay. The M4 console balls are on the header; this example does not mux them, and no adapter is attached, so M4 `printk` is invisible. The visible Zephyr console is RPMsg.
+Power, ground, USB data, and the analog reference pins are not GPIO pads and are not in the overlay. The M4 console balls are on the header. This example does not mux them, so M4 `printk` is not the console to watch. The visible Zephyr console is RPMsg.
 
 ## Board LEDs
 

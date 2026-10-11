@@ -1,6 +1,6 @@
 # Yocto
 
-Kas config and the `meta-pb2` layer live here. The image is built with kas-container from the repo root. Nothing in this directory is flashed to the board.
+Kas config and the `meta-pb2` layer live here. Build and write `pb2-demo-image` from the repo root. The commands are in the top-level README. `kas-container build` does not write the SD card.
 
 ```
 wget -O kas-container https://raw.githubusercontent.com/siemens/kas/5.5/kas-container

@@ -8,7 +8,7 @@ One userspace program, `pb2`. SPI hello is a command in that program, next to xy
 
 ## Beagle Linux — `beagle-linux/`
 
-The Debian image already on the board. This is the active test target. It keeps the Debian pieces only.
+Debian pieces for the BeagleBoard image: overlays, the patched `pru_rproc` module, and the on-target runner.
 
 - `beagle-linux/overlays/` — device-tree overlays, including `k3-am62-pocketbeagle2-leftover-gpio.dtso`. Pads are `AM62X_IOPAD()` lines. The build fetches BeagleBoard-DeviceTrees into `third_party/` for `ti/k3-pinctrl.h` and does not vendor that header.
 - `beagle-linux/kernel/pru_rproc/` — patched `pru_rproc` with virtio kick
@@ -29,7 +29,7 @@ The Debian image already on the board. This is the active test target. It keeps 
 
 ## Yocto — `yocto/`
 
-`yocto/kas/pb2-poky.yml` is the kas-container config for `pb2-demo-image`, a minimum Poky image for machine `pocketbeagle2`. `yocto/layers/meta-pb2` compiles `linux-app/`, the Zephyr M4 firmware, and both PRU firmwares, and installs `pb2-demo` on `PATH`. The image does not start those cores at boot. `yocto/sources/`, `yocto/downloads/`, and `yocto/build/` are generated and not committed. The build does not flash the board. The Debian image under `beagle-linux/` stays the active test target.
+`yocto/kas/pb2-poky.yml` is the kas-container config for `pb2-demo-image`, a minimum Poky image for machine `pocketbeagle2`. `yocto/layers/meta-pb2` compiles `linux-app/`, the Zephyr M4 firmware, and both PRU firmwares, and installs `pb2-demo` on `PATH`. The image does not start those cores at boot. `yocto/sources/`, `yocto/downloads/`, and `yocto/build/` are generated and not committed. Building the image does not write a card. The Debian path is separate and lives under `beagle-linux/`.
 
 ## Containers — `containers/`
 
