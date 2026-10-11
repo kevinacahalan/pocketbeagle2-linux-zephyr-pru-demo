@@ -2,104 +2,53 @@
 
 Linux on the A53s calls Zephyr functions over eRPC on the existing RPMsg channel, and commands PRU0 over RPMsg. Zephyr asks PRU0 through a small DDR mailbox. PRU0 is the transfer core: it arms PRU1 in PRU shared RAM, and it also writes a 32-bit X and a 32-bit Y there. PRU1 does not use RPMsg. It runs a cycle-counted loop, samples the arm block once per period, and when the X/Y sequence changes it shifts that pair out on a header pin. Linux hands Zephyr bulk chunks through a separate DDR region (`zephyr-m4/include/pb2_shm.h`). The device-manager R5 is not loaded or stopped.
 
-Two board paths are below. Flash the BeagleBoard Debian image and copy this demo onto it, or build `pb2-demo-image` and write that card. Flashing the Yocto image is the other path. This repository does not record that flash. Host compiles run in containers. `LAYOUT.md` is the directory map. `78000000.r5f` is not loaded or stopped.
+Host compiles run in containers. `LAYOUT.md` is the directory map. `78000000.r5f` is not loaded or stopped.
 
-## Board setup
+## Getting started
 
-Pick one path. The Debian path needs a host build first, then copies files onto the board. The Yocto path builds the image on the host and writes the card.
+From the repo root, this builds userspace, PRU firmware, and the M4 ELF:
+
+```
+./beagle-linux/scripts/build.sh
+```
+
+[Build](#build) is that script, one target at a time. Do not use a compiler installed on the host.
+
+The Debian image is <https://www.beagleboard.org/distros/pocketbeagle-2-debian-13-7-2026-10-09-iot-v6-18-x-k3>, file `pocketbeagle2-debian-13.7-iot-v6.18-k3-arm64-2026-10-09-10gb.img.xz`.
+
+The Yocto card image is `yocto/build/deploy-ti/images/pocketbeagle2/pb2-demo-image-pocketbeagle2.rootfs.wic.xz`.
 
 ### BeagleBoard Debian
 
-Have these in hand: a PocketBeagle 2, a microSD card large enough for a 10 GB image, a USB cable for the board's USB device port, and a host with git and podman.
+The Debian image still needs this demo installed. Put `linux-app/pb2` and `beagle-linux/scripts/pb2-demo` on `PATH`. Put `pru/build/am62x-pru0-fw` and `pru/build/am62x-pru1-fw` at `/lib/firmware/am62x-pru0-fw` and `/lib/firmware/am62x-pru1-fw`. Put `build/zephyr/pb2_m4.elf` at `/lib/firmware/am62-mcu-m4f0_0-fw`. Put `beagle-linux/kernel/pru_rproc/pru_rproc.ko` at `/usr/lib/pru_rproc.ko`; the stock module has no virtio kick. Put the three overlay blobs in `/boot/firmware/overlays/`. On the default label in `/boot/firmware/extlinux/extlinux.conf`, set:
 
-1. Download the image from <https://www.beagleboard.org/distros/pocketbeagle-2-debian-13-7-2026-10-09-iot-v6-18-x-k3>. The file is `pocketbeagle2-debian-13.7-iot-v6.18-k3-arm64-2026-10-09-10gb.img.xz`. Its SHA-256 is `d1368cc6fc437997f2fe76920cff551fd48b07d957780c16b0fb86e7983c0bd1`.
+```
+fdtoverlays /overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo /overlays/k3-am62-pocketbeagle2-pru1-xy.dtbo /overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo
+```
 
-2. Write that image to the microSD card. Confirm the card with `lsblk` before you write. Replace `/dev/sdX` with that card:
+The pads do not change until the next boot. Install `tmux` and `libcap2-bin` if `pb2-demo --tmux` or `setcap` is missing. The image requests DHCP on `usb0`. Start the demo with the module you installed:
 
-   ```
-   xz -dc pocketbeagle2-debian-13.7-iot-v6.18-k3-arm64-2026-10-09-10gb.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress
-   ```
+```
+sudo PB2_PRU_KO=/usr/lib/pru_rproc.ko pb2-demo
+```
 
-   bb-imager can write the same file. Either way, before the first boot set `user_name` and `user_password` in `sysconf.txt` on the FAT partition, or set them in bb-imager. Choose the account yourself.
-
-3. Boot the board from that card. Plug the USB device port into the host. The image requests DHCP on `usb0`. Give the host side of that link an address, or answer the DHCP request.
-
-4. From the host, with the account and address you chose:
-
-   ```
-   export PB2_SSH=user@board
-   ssh "$PB2_SSH"
-   ```
-
-   `user@board` is a placeholder.
-
-5. On the host, from this repo, build userspace, PRU firmware, and the M4 ELF. The [Build](#build) section is that command. Then build the PRU kernel module, which copies kernel headers from the board. `PB2_KREL` defaults to `6.18.52-arm64-k3-r56`. On the board, `uname -r` is the value to use if it differs.
-
-   ```
-   ./beagle-linux/scripts/build.sh
-   PB2_SSH=user@board ./beagle-linux/scripts/build.sh kmod
-   ```
-
-6. Copy `pb2`, `pb2-demo`, both PRU firmwares, the M4 ELF, and `pru_rproc.ko` onto the board and install them:
-
-   ```
-   scp linux-app/pb2 beagle-linux/scripts/pb2-demo \
-     pru/build/am62x-pru0-fw pru/build/am62x-pru1-fw \
-     build/zephyr/pb2_m4.elf \
-     beagle-linux/kernel/pru_rproc/pru_rproc.ko \
-     beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo \
-     beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtbo \
-     beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo \
-     "$PB2_SSH":/tmp/
-   ssh "$PB2_SSH" 'sudo install -m 0755 /tmp/pb2 /tmp/pb2-demo /usr/bin/ \
-     && sudo install -m 0644 /tmp/am62x-pru0-fw /tmp/am62x-pru1-fw /lib/firmware/ \
-     && sudo install -m 0644 /tmp/pb2_m4.elf /lib/firmware/am62-mcu-m4f0_0-fw \
-     && sudo install -m 0644 /tmp/pru_rproc.ko /usr/lib/pru_rproc.ko \
-     && sudo install -m 0644 /tmp/k3-am62-pocketbeagle2-spi0-hello.dtbo \
-          /tmp/k3-am62-pocketbeagle2-pru1-xy.dtbo \
-          /tmp/k3-am62-pocketbeagle2-leftover-gpio.dtbo \
-          /boot/firmware/overlays/'
-   ```
-
-7. On the default label in `/boot/firmware/extlinux/extlinux.conf`, set:
-
-   ```
-   fdtoverlays /overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo /overlays/k3-am62-pocketbeagle2-pru1-xy.dtbo /overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo
-   ```
-
-   Reboot. The pads do not change until then. Install `tmux` and `libcap2-bin` on the board if `pb2-demo --tmux` or `setcap` is missing.
-
-8. Start the demo. The stock `pru_rproc` has no virtio kick, so point the runner at the module you installed:
-
-   ```
-   sudo PB2_PRU_KO=/usr/lib/pru_rproc.ko pb2-demo
-   ```
-
-   `pb2-demo` stops and starts the M4, PRU0, and PRU1. It does not stop or reload `78000000.r5f`.
+`pb2-demo` stops and starts the M4, PRU0, and PRU1. It does not stop or reload `78000000.r5f`.
 
 ### Yocto
 
-Have these in hand: a host with podman or docker, enough disk for a Poky build under `yocto/`, a microSD card, and this repo. This is the other path. These steps write an image you can boot. This repository does not record flashing that image.
+From the repo root, fetch kas-container and build `pb2-demo-image`. Use `docker` instead of `podman` in `KAS_CONTAINER_ENGINE` if that is the engine you have:
 
-1. From the repo root, fetch kas-container and build `pb2-demo-image`. Use `docker` instead of `podman` in `KAS_CONTAINER_ENGINE` if that is the engine you have:
+```
+wget -O kas-container https://raw.githubusercontent.com/siemens/kas/5.5/kas-container
+chmod +x kas-container
+KAS_BUILD_DIR=yocto/build KAS_CONTAINER_ENGINE=podman ./kas-container build yocto/kas/pb2-poky.yml
+```
 
-   ```
-   wget -O kas-container https://raw.githubusercontent.com/siemens/kas/5.5/kas-container
-   chmod +x kas-container
-   KAS_BUILD_DIR=yocto/build KAS_CONTAINER_ENGINE=podman ./kas-container build yocto/kas/pb2-poky.yml
-   ```
+The machine, kernel, and layers come from TI's `kas/poky-wrynose-config.yml`. The distro is poky. The target is `pb2-demo-image` (core-image-minimal plus this demo). The build compiles `pb2`, the Zephyr M4 ELF, and both PRU firmwares. It does not load or stop `78000000.r5f`. Downloads and shared state stay under `yocto/` and are not committed.
 
-   The machine, kernel, and layers come from TI's `kas/poky-wrynose-config.yml`. The distro is poky. The target is `pb2-demo-image` (core-image-minimal plus this demo). The build compiles `pb2`, the Zephyr M4 ELF, and both PRU firmwares. It does not load or stop `78000000.r5f`. Downloads and shared state stay under `yocto/` and are not committed.
+`pb2-demo-image` already contains `/usr/bin/pb2` and `/usr/bin/pb2-demo` on `PATH`. The M4 ELF is `/lib/firmware/am62-mcu-m4f0_0-fw`. The PRU firmwares are `/lib/firmware/am62x-pru0-fw` and `/lib/firmware/am62x-pru1-fw`. Nothing starts those cores at boot. The three overlays are files under `/lib/firmware` and are not on the boot overlay list, so SPI0 and P1.20 stay at the board tree's mux until you add those files to the boot overlays. The serial console is `ttyS2` at 115200. Dropbear is installed. This image does not set an account or a password.
 
-2. The card image is `yocto/build/deploy-ti/images/pocketbeagle2/pb2-demo-image-pocketbeagle2.rootfs.wic.xz`, with a `.wic.bmap` beside it. Confirm the microSD card with `lsblk`. Replace `/dev/sdX` with that card:
-
-   ```
-   sudo bmaptool copy yocto/build/deploy-ti/images/pocketbeagle2/pb2-demo-image-pocketbeagle2.rootfs.wic.xz /dev/sdX
-   ```
-
-3. Boot that card. `/usr/bin/pb2` and `/usr/bin/pb2-demo` are on `PATH`. The M4 ELF is `/lib/firmware/am62-mcu-m4f0_0-fw`. The PRU firmwares are `/lib/firmware/am62x-pru0-fw` and `/lib/firmware/am62x-pru1-fw`. Nothing starts those cores at boot. The three overlays are files under `/lib/firmware` and are not on the boot overlay list, so SPI0 and P1.20 stay at the board tree's mux until you add those files to the boot overlays. The serial console is `ttyS2` at 115200. Dropbear is installed. This image does not set an account or a password.
-
-4. Run `pb2-demo`. It does not stop or reload `78000000.r5f`.
+Run `pb2-demo`. It does not stop or reload `78000000.r5f`.
 
 ## Build
 
@@ -111,7 +60,7 @@ From the repo root, this builds userspace, PRU firmware, and Zephyr, in that ord
 ./beagle-linux/scripts/build.sh
 ```
 
-The kernel module and the Poky image are separate. They need a board or a much larger download, and the commands are in [Board setup](#board-setup).
+The kernel module is `./beagle-linux/scripts/build.sh kmod` and needs the Debian board. The Poky image is the kas-container build in [Getting started](#getting-started).
 
 1. Linux userspace and the Debian overlays. Image `pb2-linux-userspace` from `containers/linux/Containerfile` (Debian 13, the aarch64 cross compiler, and `dtc`). The script clones EmbeddedRPC 1.14.0 into `third_party/erpc` if it is missing, and BeagleBoard-DeviceTrees `v6.18.x` commit `550f7711a4696d5f5e92505289379b754e871313` into `third_party/BeagleBoard-DeviceTrees`.
 
@@ -305,7 +254,7 @@ The script needs root or sudo to stop and start the M4 and the two PRUs, insert 
 
 The Linux side still sends a startup script before it reads commands: ping PRU0, `say hello from linux`, `arm 100000 30`, `chunk bulk-hello`, then `pru0 arm 250000 20`. That script is not the X/Y measurement below.
 
-The Debian image does not ship this runner. The [BeagleBoard Debian](#beagleboard-debian) steps install it. The Yocto image already has `pb2-demo` on `PATH`.
+The Debian image does not ship this runner. [BeagleBoard Debian](#beagleboard-debian) is what that image still needs installed. The Yocto image already has `pb2-demo` on `PATH`.
 
 ## What a passing run looks like
 
@@ -396,4 +345,4 @@ Left on disk and not committed:
 | `linux-app/pb2` | the userspace program |
 | `*.ko` | kernel modules, including patched `pru_rproc` |
 
-The Debian USB gadget steps are in [BeagleBoard Debian](#beagleboard-debian). The M4 console balls are header P2.05A and P2.07A. This example does not wire them, so `printk` is not the console you watch. The visible Zephyr console is the RPMsg window. `PINMUX.md` is the pin list.
+The Debian image requests DHCP on `usb0`. That note is in [BeagleBoard Debian](#beagleboard-debian). The M4 console balls are header P2.05A and P2.07A. This example does not wire them, so `printk` is not the console you watch. The visible Zephyr console is the RPMsg window. `PINMUX.md` is the pin list.
