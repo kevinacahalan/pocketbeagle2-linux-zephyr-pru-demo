@@ -1,55 +1,56 @@
 // Header pins this demo does not already use, muxed as Linux GPIO.
 //
-// Each pin below is a leftover. It is not SPI0, SPI2, PRU1 P1.20, the M4
-// console, or the RPMsg path. 0x54007 is mode 7 with the receiver enabled,
-// the same value the board tree uses for an input GPIO. 0x200007 is mode 7
-// with the output held off, for a ball shorted to that header pin.
-// Nothing in the demo drives these lines.
+// Each pin below is a leftover. It is unused by the demo. It is not SPI0,
+// SPI2, PRU1 P1.20, the M4 console, or the RPMsg path. PIN_INPUT mode 7 is
+// an input GPIO. PIN_DISABLE mode 7 holds a shorted partner off so it does
+// not fight the header pin. Nothing in the demo drives these lines.
 
 /dts-v1/;
 /plugin/;
 
+#include "ti/k3-pinctrl.h"
+
 &main_pmx0 {
 	pb2_leftover_gpio_pins: pb2-leftover-gpio-pins {
 		pinctrl-single,pins = <
-			0x01a0 0x54007	/* leftover P1.02 E18 GPIO1_10, muxed as Linux GPIO and not used by the demo */
-			0x0164 0x200007	/* leftover P1.02A AA19, shorted to P1.02 and held off, muxed as Linux GPIO and not used by the demo */
-			0x01a8 0x54007	/* leftover P1.04 D20 GPIO1_12, muxed as Linux GPIO and not used by the demo */
-			0x016c 0x200007	/* leftover P1.04A Y18, shorted to P1.04 and held off, muxed as Linux GPIO and not used by the demo */
-			0x0094 0x54007	/* leftover P1.13 N20 GPIO0_36, muxed as Linux GPIO and not used by the demo */
-			0x017c 0x54007	/* leftover P1.19 AD22 GPIO1_1, muxed as Linux GPIO and not used by the demo */
-			0x0190 0x54007	/* leftover P1.21 AE22 GPIO1_6, muxed as Linux GPIO and not used by the demo */
-			0x018c 0x54007	/* leftover P1.23 AC21 GPIO1_5, muxed as Linux GPIO and not used by the demo */
-			0x0188 0x54007	/* leftover P1.25 AB20 GPIO1_4, muxed as Linux GPIO and not used by the demo */
-			0x0184 0x54007	/* leftover P1.27 AE23 GPIO1_3, muxed as Linux GPIO and not used by the demo */
-			0x00fc 0x54007	/* leftover P1.29 Y20 GPIO0_62, muxed as Linux GPIO and not used by the demo */
-			0x00f0 0x54007	/* leftover P1.31 Y22 GPIO0_59, muxed as Linux GPIO and not used by the demo */
-			0x01ec 0x54007	/* leftover P1.33 A17 GPIO1_29, muxed as Linux GPIO and not used by the demo */
-			0x00e4 0x200007	/* leftover P1.33A AA23, shorted to P1.33 and held off, muxed as Linux GPIO and not used by the demo */
-			0x0180 0x54007	/* leftover P1.34 AD23 GPIO1_2, muxed as Linux GPIO and not used by the demo */
-			0x0168 0x54007	/* leftover P1.35 AE21 GPIO0_88, muxed as Linux GPIO and not used by the demo */
-			0x00b8 0x54007	/* leftover P2.02 U22 GPIO0_45, muxed as Linux GPIO and not used by the demo */
-			0x015c 0x54007	/* leftover P2.03 AB22 GPIO0_85, muxed as Linux GPIO and not used by the demo */
-			0x019c 0x200007	/* leftover P2.03A B18, shorted to P2.03 and held off, muxed as Linux GPIO and not used by the demo */
-			0x00bc 0x54007	/* leftover P2.04 V24 GPIO0_46, muxed as Linux GPIO and not used by the demo */
-			0x00c0 0x54007	/* leftover P2.06 W25 GPIO0_47, muxed as Linux GPIO and not used by the demo */
-			0x00c4 0x54007	/* leftover P2.08 W24 GPIO0_48, muxed as Linux GPIO and not used by the demo */
-			0x01d0 0x54007	/* leftover P2.09 A15 GPIO1_22, muxed as Linux GPIO and not used by the demo */
-			0x0174 0x54007	/* leftover P2.10 AD21 GPIO0_91, muxed as Linux GPIO and not used by the demo */
-			0x01d4 0x54007	/* leftover P2.11 B15 GPIO1_23, muxed as Linux GPIO and not used by the demo */
-			0x0104 0x54007	/* leftover P2.17 AC24 GPIO0_64, muxed as Linux GPIO and not used by the demo */
-			0x00d8 0x54007	/* leftover P2.18 V21 GPIO0_53, muxed as Linux GPIO and not used by the demo */
-			0x0178 0x54007	/* leftover P2.19 AC20 GPIO1_0, muxed as Linux GPIO and not used by the demo */
-			0x00c8 0x54007	/* leftover P2.20 Y25 GPIO0_49, muxed as Linux GPIO and not used by the demo */
-			0x0100 0x54007	/* leftover P2.22 AC25 GPIO0_63, muxed as Linux GPIO and not used by the demo */
-			0x00d0 0x54007	/* leftover P2.24 Y23 GPIO0_51, muxed as Linux GPIO and not used by the demo */
-			0x00f8 0x54007	/* leftover P2.28 AB24 GPIO0_61, muxed as Linux GPIO and not used by the demo */
-			0x00ec 0x54007	/* leftover P2.30 AA24 GPIO0_58, muxed as Linux GPIO and not used by the demo */
-			0x00e8 0x54007	/* leftover P2.32 AB25 GPIO0_57, muxed as Linux GPIO and not used by the demo */
-			0x00d4 0x54007	/* leftover P2.33 AA25 GPIO0_52, muxed as Linux GPIO and not used by the demo */
-			0x00f4 0x54007	/* leftover P2.34 AA21 GPIO0_60, muxed as Linux GPIO and not used by the demo */
-			0x00dc 0x54007	/* leftover P2.35 W21 GPIO0_54, muxed as Linux GPIO and not used by the demo */
-			0x01b8 0x54007	/* leftover P2.36 C13 GPIO1_16, muxed as Linux GPIO and not used by the demo */
+			AM62X_IOPAD(0x01a0, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.02 (E18) MCASP0_AXR0.GPIO1_10, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x0164, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.02A (AA19) RGMII2_TX_CTL.GPIO0_87, shorted to P1.02 and held off, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x01a8, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.04 (D20) MCASP0_AFSX.GPIO1_12, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x016c, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.04A (Y18) RGMII2_TD0.GPIO0_89, shorted to P1.04 and held off, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x0094, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.13 (N20) GPMC0_BE1n.GPIO0_36, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x017c, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.19 (AD22) RGMII2_RX_CTL.GPIO1_1, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x0190, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.21 (AE22) RGMII2_RD3.GPIO1_6, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x018c, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.23 (AC21) RGMII2_RD2.GPIO1_5, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x0188, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.25 (AB20) RGMII2_RD1.GPIO1_4, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x0184, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.27 (AE23) RGMII2_RD0.GPIO1_3, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00fc, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.29 (Y20) VOUT0_DE.GPIO0_62, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00f0, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.31 (Y22) VOUT0_DATA14.GPIO0_59, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x01ec, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.33 (A17) I2C1_SDA.GPIO1_29, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00e4, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.33A (AA23) VOUT0_DATA11.GPIO0_56, shorted to P1.33 and held off, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x0180, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.34 (AD23) RGMII2_RXC.GPIO1_2, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x0168, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.35 (AE21) RGMII2_TXC.GPIO0_88, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00b8, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.02 (U22) VOUT0_DATA0.GPIO0_45, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x015c, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.03 (AB22) MDIO0_MDIO.GPIO0_85, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x019c, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.03A (B18) MCASP0_AXR1.GPIO1_9, shorted to P2.03 and held off, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00bc, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.04 (V24) VOUT0_DATA1.GPIO0_46, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00c0, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.06 (W25) VOUT0_DATA2.GPIO0_47, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00c4, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.08 (W24) VOUT0_DATA3.GPIO0_48, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x01d0, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.09 (A15) UART0_CTSn.GPIO1_22, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x0174, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.10 (AD21) RGMII2_TD2.GPIO0_91, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x01d4, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.11 (B15) UART0_RTSn.GPIO1_23, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x0104, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.17 (AC24) VOUT0_PCLK.GPIO0_64, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00d8, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.18 (V21) VOUT0_DATA8.GPIO0_53, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x0178, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.19 (AC20) RGMII2_TD3.GPIO1_0, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00c8, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.20 (Y25) VOUT0_DATA4.GPIO0_49, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x0100, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.22 (AC25) VOUT0_VSYNC.GPIO0_63, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00d0, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.24 (Y23) VOUT0_DATA6.GPIO0_51, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00f8, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.28 (AB24) VOUT0_HSYNC.GPIO0_61, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00ec, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.30 (AA24) VOUT0_DATA13.GPIO0_58, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00e8, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.32 (AB25) VOUT0_DATA12.GPIO0_57, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00d4, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.33 (AA25) VOUT0_DATA7.GPIO0_52, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00f4, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.34 (AA21) VOUT0_DATA15.GPIO0_60, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x00dc, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.35 (W21) VOUT0_DATA9.GPIO0_54, unused and muxed as Linux GPIO */
+			AM62X_IOPAD(0x01b8, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.36 (C13) SPI0_CS1.GPIO1_16, unused and muxed as Linux GPIO */
 		>;
 	};
 };
@@ -57,8 +58,8 @@
 &mcu_pmx0 {
 	pb2_leftover_mcu_gpio_pins: pb2-leftover-mcu-gpio-pins {
 		pinctrl-single,pins = <
-			0x0040 0x200007	/* leftover P2.09A D4, shorted to P2.09 and held off, muxed as Linux GPIO and not used by the demo */
-			0x003c 0x200007	/* leftover P2.11A E5, shorted to P2.11 and held off, muxed as Linux GPIO and not used by the demo */
+			AM62X_MCU_IOPAD(0x0040, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.09A (D4) MCU_MCAN1_RX.MCU_GPIO0_16, shorted to P2.09 and held off, unused and muxed as Linux GPIO */
+			AM62X_MCU_IOPAD(0x003c, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.11A (E5) MCU_MCAN1_TX.MCU_GPIO0_15, shorted to P2.11 and held off, unused and muxed as Linux GPIO */
 		>;
 	};
 };

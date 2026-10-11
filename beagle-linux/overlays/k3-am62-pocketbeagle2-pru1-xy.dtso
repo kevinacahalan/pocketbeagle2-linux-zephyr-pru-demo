@@ -9,10 +9,12 @@
 /dts-v1/;
 /plugin/;
 
+#include "ti/k3-pinctrl.h"
+
 &main_pmx0 {
 	pb2_pru1_xy_pins: pb2-pru1-xy-pins {
 		pinctrl-single,pins = <
-			0x00cc 0x10002	/* P1.20 Y24 PR0_PRU1_GPO5 output */
+			AM62X_IOPAD(0x00cc, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 2) /* (Y24) VOUT0_DATA5.PR0_PRU1_GPO5 */
 		>;
 	};
 };

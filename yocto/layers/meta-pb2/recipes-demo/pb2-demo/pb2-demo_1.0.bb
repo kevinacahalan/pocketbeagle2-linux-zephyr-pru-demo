@@ -1,7 +1,11 @@
 SUMMARY = "PocketBeagle 2 Linux demo"
-DESCRIPTION = "Cross-compiles the pb2 userspace program and the Debian device-tree overlays, and installs the pb2-demo runner. EmbeddedRPC is fetched and compiled."
-LICENSE = "BSD-3-Clause & CLOSED"
-LIC_FILES_CHKSUM = "file://third_party/erpc/LICENSE;md5=b66f32a90f9577a5a3255c21d79bc619"
+DESCRIPTION = "Cross-compiles the pb2 userspace program and the Debian device-tree overlays, and installs the pb2-demo runner. EmbeddedRPC is fetched and compiled. BeagleBoard-DeviceTrees is fetched so the overlays can include ti/k3-pinctrl.h."
+LICENSE = "BSD-3-Clause & CLOSED & (GPL-2.0-only | MIT)"
+LIC_FILES_CHKSUM = "file://third_party/erpc/LICENSE;md5=b66f32a90f9577a5a3255c21d79bc619 \
+    file://third_party/BeagleBoard-DeviceTrees/src/arm64/ti/k3-pinctrl.h;beginline=1;endline=1;md5=d3f11af791a00b9505045ea598ecc0c7 \
+    file://third_party/BeagleBoard-DeviceTrees/LICENSES/MIT.txt;md5=3912d958d00bac4a6b550f75d7c806bb \
+    file://third_party/BeagleBoard-DeviceTrees/LICENSES/GPL-2.0-only.txt;md5=3d26203303a722dedc6bf909d95ba815 \
+"
 
 DEPENDS = "dtc-native"
 
@@ -21,8 +25,11 @@ SRC_URI = " \
     file://zephyr-m4/erpc/shim;subdir=src \
     file://beagle-linux/scripts/pb2-demo;subdir=src \
     git://github.com/EmbeddedRPC/erpc.git;protocol=https;nobranch=1;destsuffix=src/third_party/erpc;name=erpc \
+    git://github.com/beagleboard/BeagleBoard-DeviceTrees.git;protocol=https;nobranch=1;destsuffix=src/third_party/BeagleBoard-DeviceTrees;name=bbdt \
 "
 SRCREV_erpc = "e8d5684a920e023a49cec875c04ad05ddc8521e6"
+SRCREV_bbdt = "550f7711a4696d5f5e92505289379b754e871313"
+SRCREV_FORMAT = "erpc_bbdt"
 
 S = "${UNPACKDIR}/src"
 
@@ -42,7 +49,9 @@ do_compile () {
         CFLAGS="${CFLAGS}" \
         LDFLAGS="${LDFLAGS}" \
         CXXFLAGS="${CXXFLAGS} -std=c++17 -fno-exceptions -fno-rtti"
-    oe_runmake -C ${S}/beagle-linux/overlays
+    oe_runmake -C ${S}/beagle-linux/overlays \
+        BBDT=${S}/third_party/BeagleBoard-DeviceTrees \
+        CPP="${BUILD_CC} -E"
 }
 
 do_install () {

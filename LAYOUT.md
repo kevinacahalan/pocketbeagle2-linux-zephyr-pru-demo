@@ -10,7 +10,7 @@ One userspace program, `pb2`. SPI hello is a command in that program, next to xy
 
 The Debian image already on the board. This is the active test target. It keeps the Debian pieces only.
 
-- `beagle-linux/overlays/` — device-tree overlays, including `k3-am62-pocketbeagle2-leftover-gpio.dtso`
+- `beagle-linux/overlays/` — device-tree overlays, including `k3-am62-pocketbeagle2-leftover-gpio.dtso`. Pads are `AM62X_IOPAD()` lines. The build fetches BeagleBoard-DeviceTrees into `third_party/` for `ti/k3-pinctrl.h` and does not vendor that header.
 - `beagle-linux/kernel/pru_rproc/` — patched `pru_rproc` with virtio kick
 - `beagle-linux/scripts/build.sh` — builds the container images, then compiles
 - `beagle-linux/scripts/pb2-demo` — on-target runner, installed as `/usr/bin/pb2-demo`

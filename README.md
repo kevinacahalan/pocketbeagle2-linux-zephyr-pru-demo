@@ -10,13 +10,13 @@ The board still runs the BeagleBoard Debian image. That tree is `beagle-linux/`,
 
 Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`. It uses podman to build the images described by the Containerfiles, then runs the compile in those images. Do not use a compiler installed on the host. `./beagle-linux/scripts/build.sh` with no argument builds userspace, PRU firmware, and Zephyr, in that order. The kernel module is a separate step because it needs the board's kernel headers.
 
-1. Linux userspace, image `pb2-linux-userspace` from `containers/linux/Containerfile` (Debian 13, the aarch64 cross compiler, and `dtc`). This also clones EmbeddedRPC 1.14.0 into `third_party/erpc` if it is missing.
+1. Linux userspace, image `pb2-linux-userspace` from `containers/linux/Containerfile` (Debian 13, the aarch64 cross compiler, and `dtc`). This also clones EmbeddedRPC 1.14.0 into `third_party/erpc` if it is missing, and BeagleBoard-DeviceTrees `v6.18.x` commit `550f7711a4696d5f5e92505289379b754e871313` into `third_party/BeagleBoard-DeviceTrees` so the overlays can include `ti/k3-pinctrl.h`. That header is not copied into this repository.
 
    ```
    ./beagle-linux/scripts/build.sh linux
    ```
 
-   Output: `linux-app/pb2`. That one program is what `pb2-demo` starts. SPI hello is its `spi` command, next to xy, arm, chunk, and say. The same step builds the Debian overlays in `beagle-linux/overlays/`, including `k3-am62-pocketbeagle2-leftover-gpio.dtbo`. `PINMUX.md` lists every pin those overlays mux.
+   Output: `linux-app/pb2`. That one program is what `pb2-demo` starts. SPI hello is its `spi` command, next to xy, arm, chunk, and say. The same step preprocesses the Debian overlays in `beagle-linux/overlays/` with `AM62X_IOPAD()` from that Beagle tree, including `k3-am62-pocketbeagle2-leftover-gpio.dtbo`. `PINMUX.md` lists every pin those overlays mux.
 
 2. PRU firmware, image `pb2-pru-cgt` from `containers/pru-cgt/Containerfile`. The first stage installs TI CGT 2.3.3 on Debian 10, because the installer is a 32-bit stub that needs that older glibc. The second stage is Debian 13 with `clpru` at `/opt/ti-cgt-pru`. The firmware is compiled there.
 
@@ -72,6 +72,15 @@ Some header pins short two SoC balls. Only one ball is muxed to SPI. The partner
 
 ### Linux, header P2
 
+```
+AM62X_IOPAD(0x01bc, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 0) /* (A14) SPI0_CLK */
+AM62X_IOPAD(0x01c4, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 0) /* (B14) SPI0_D1 */
+AM62X_IOPAD(0x01c0, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 0) /* (B13) SPI0_D0 */
+AM62X_IOPAD(0x01b4, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 0) /* (A13) SPI0_CS0 */
+AM62X_IOPAD(0x00a4, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* (M22) GPMC0_DIR.GPIO0_40 */
+AM62X_IOPAD(0x0170, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* (AA18) RGMII2_TD1.GPIO0_90 */
+```
+
 | Signal | Header | Ball | Pad offset |
 | --- | --- | --- | --- |
 | CLK | P2.29 | A14 | `0x01bc` |
@@ -96,7 +105,7 @@ P1.06A (ball AD18), P1.10's other ball A18, and P1.12A (ball AE18) are disabled.
 
 Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtso`.
 
-`./beagle-linux/scripts/build.sh linux` builds it in the Linux userspace image with `dtc`, along with `pb2`. The blob is `beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo`.
+`./beagle-linux/scripts/build.sh linux` is the one command. It fetches BeagleBoard-DeviceTrees, preprocesses this overlay with `ti/k3-pinctrl.h`, and runs `dtc`, along with `pb2`. The blob is `beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo`.
 
 The flashed image loads overlays from the boot partition, not from configfs (`/sys/kernel/config` on this image has no device-tree overlays). Copy the blob to `/boot/firmware/overlays/`, then on the default label in `/boot/firmware/extlinux/extlinux.conf` set:
 
@@ -147,11 +156,17 @@ Bytes, in order, when none of the payload bytes is `0xC0` or `0xDB`:
 
 If a payload byte (X, Y, or the XOR) is `0xC0`, those two bytes on the wire are `0xDB 0xDC`. If it is `0xDB`, they are `0xDB 0xDD`. The END bytes are not escaped.
 
-The pin is header P1.20, ball Y24, pad offset `0x00cc`, mux mode 2 (`PR0_PRU1_GPO5`), which is PRU1 R30 bit 5. It is not a Linux SPI0 pin (P2.29, P2.25, P2.27, P2.31) and not a Zephyr SPI2 pin (P1.08, P1.12, P1.10, P1.06). The expansion table shows one ball on P1.20.
+The pin is header P1.20, ball Y24, pad offset `0x00cc`, mux mode 2 (`PR0_PRU1_GPO5`), which is PRU1 R30 bit 5:
 
-Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtso`. `./beagle-linux/scripts/build.sh linux` builds the blob with `dtc` next to the SPI overlay. Copy it to `/boot/firmware/overlays/` and add it to `fdtoverlays` on the default extlinux label, the same way as the SPI overlay. The PRUSS node takes that pin group. The pad does not change until the next boot. This repository does not include a capture of P1.20.
+```
+AM62X_IOPAD(0x00cc, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 2) /* (Y24) VOUT0_DATA5.PR0_PRU1_GPO5 */
+```
 
-Header pins that Linux, Zephyr, and the PRUs do not already use are muxed as input GPIOs by `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtso`. Each of those pins is commented as a leftover. The same `build.sh linux` step writes `k3-am62-pocketbeagle2-leftover-gpio.dtbo`. Load it the same way as the SPI overlay: copy the blob to `/boot/firmware/overlays/` and append it to `fdtoverlays` on the default extlinux label. It is not on the boot list until you add it, and the image recipe does not add it. The full pin list is `PINMUX.md`. None of these pins is an LED.
+It is not a Linux SPI0 pin (P2.29, P2.25, P2.27, P2.31) and not a Zephyr SPI2 pin (P1.08, P1.12, P1.10, P1.06). The expansion table shows one ball on P1.20.
+
+Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtso`. `./beagle-linux/scripts/build.sh linux` builds the blob next to the SPI overlay. Copy it to `/boot/firmware/overlays/` and add it to `fdtoverlays` on the default extlinux label, the same way as the SPI overlay. The PRUSS node takes that pin group. The pad does not change until the next boot. This repository does not include a capture of P1.20.
+
+Header pins that Linux, Zephyr, and the PRUs do not already use are muxed as input GPIOs by `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtso`. Each of those pins uses `AM62X_IOPAD()` (the two MCU partners use `AM62X_MCU_IOPAD()`) and is commented as unused and muxed as Linux GPIO. The same `build.sh linux` step writes `k3-am62-pocketbeagle2-leftover-gpio.dtbo`. Load it the same way as the SPI overlay: copy the blob to `/boot/firmware/overlays/` and append it to `fdtoverlays` on the default extlinux label. It is not on the boot list until you add it, and the image recipe does not add it. The full pin list is `PINMUX.md`. None of these pins is an LED.
 
 From the linux window the commands are `pru0 xy <x> <y>` and `zephyr xy <x> <y>`. PRU0's RPMsg reply names who asked and what it wrote for PRU1. `pb2 xy` prints the shared record, including `consumed`.
 

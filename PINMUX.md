@@ -4,13 +4,30 @@ This example muxes pins from three places: the Linux SPI0 overlay, the Zephyr M4
 
 No pin this example muxes is an LED, and the example does not drive an LED. The four green user LEDs are on the board, not on header P1 or P2. The board tree muxes them, and the kernel LED triggers own them. See [Board LEDs](#board-leds).
 
-Pad values below are what this example writes. `0x54007` is mode 7 with the receiver enabled (an input GPIO, the same value the board tree uses). `0x200007` is mode 7 with the output held off, for a ball shorted to the header pin. `0x10000` is a mode 0 output. `0x10002` is a mode 2 output.
+Linux overlays include `ti/k3-pinctrl.h` and write each pad with `AM62X_IOPAD()`. MCU-domain pads use `AM62X_MCU_IOPAD()`. The header is `src/arm64/ti/k3-pinctrl.h` from BeagleBoard-DeviceTrees `v6.18.x` commit `550f7711a4696d5f5e92505289379b754e871313`. This repository does not contain a copy of that header. `./beagle-linux/scripts/build.sh linux` clones the tree and preprocesses the overlays the way that tree's Makefile does (`cpp -nostdinc -I src/arm64`, then `dtc`).
+
+A source line looks like:
+
+```
+AM62X_IOPAD(0x00cc, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 2) /* (Y24) VOUT0_DATA5.PR0_PRU1_GPO5 */
+```
+
+`PIN_OUTPUT` compiles to `0x10000`, `PIN_INPUT` to `0x54000`, and `PIN_DISABLE` to `0x200000`. `PIN_DRIVE_STRENGTH_NOMINAL` is 0. The mux mode is added to that cell. An input GPIO is mode 7, which compiles to `0x54007` (the same value the board tree uses). A shorted partner held off is mode 7 with the driver disabled, which compiles to `0x200007`. A mode 2 output compiles to `0x10002`. The Zephyr SPI2 pins stay in the M4 overlay and still use `K3_PINMUX()`.
 
 ## Linux SPI0
 
 Core: Linux, main SPI0 at `0x20100000`. Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtso`. Mode 0 is the SPI function.
 
-| Signal | Header | Ball | Pad offset | Value |
+```
+AM62X_IOPAD(0x01bc, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 0) /* (A14) SPI0_CLK */
+AM62X_IOPAD(0x01c4, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 0) /* (B14) SPI0_D1 */
+AM62X_IOPAD(0x01c0, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 0) /* (B13) SPI0_D0 */
+AM62X_IOPAD(0x01b4, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 0) /* (A13) SPI0_CS0 */
+AM62X_IOPAD(0x00a4, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* (M22) GPMC0_DIR.GPIO0_40 */
+AM62X_IOPAD(0x0170, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* (AA18) RGMII2_TD1.GPIO0_90 */
+```
+
+| Signal | Header | Ball | Pad offset | Compiled cell |
 | --- | --- | --- | --- | --- |
 | CLK | P2.29 | A14 | `0x01bc` | `0x10000` output |
 | MOSI (SPI0_D1) | P2.25 | B14 | `0x01c4` | `0x10000` output |
@@ -41,7 +58,11 @@ The board tree names ball B19 `P1.10(B19)` (GPIO1 line 7) and ball A18 `P1.10(A1
 
 Core: PRU1. Linux applies the pad; PRU1 drives R30 bit 5. Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtso`.
 
-| Signal | Header | Ball | Pad offset | Value |
+```
+AM62X_IOPAD(0x00cc, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 2) /* (Y24) VOUT0_DATA5.PR0_PRU1_GPO5 */
+```
+
+| Signal | Header | Ball | Pad offset | Compiled cell |
 | --- | --- | --- | --- | --- |
 | TX (`PR0_PRU1_GPO5`) | P1.20 | Y24 | `0x00cc` | `0x10002` mode 2 output |
 
@@ -49,52 +70,58 @@ One ball. Not an SPI0 or SPI2 pin. No LED. The wire has not been scoped.
 
 ## Leftover GPIOs
 
-Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtso`. Every pin in that file is a leftover: muxed as a Linux GPIO, and not used by the demo. The active ball is an input (`0x54007`). A shorted partner is held off (`0x200007`) so it does not fight the header pin. The demo does not read or drive these lines. No LED.
+Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtso`. Every pin in that file is a leftover: unused, muxed as a Linux GPIO, and not used by the demo. The active ball is `AM62X_IOPAD(..., PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7)`, which compiles to `0x54007`. A shorted partner is `PIN_DISABLE` mode 7, which compiles to `0x200007`, so it does not fight the header pin. The two MCU partners use `AM62X_MCU_IOPAD()`. The demo does not read or drive these lines. No LED.
+
+```
+AM62X_IOPAD(0x01a0, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.02 (E18) MCASP0_AXR0.GPIO1_10, unused and muxed as Linux GPIO */
+AM62X_IOPAD(0x0164, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P1.02A (AA19) RGMII2_TX_CTL.GPIO0_87, shorted to P1.02 and held off, unused and muxed as Linux GPIO */
+AM62X_MCU_IOPAD(0x0040, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P2.09A (D4) MCU_MCAN1_RX.MCU_GPIO0_16, shorted to P2.09 and held off, unused and muxed as Linux GPIO */
+```
 
 `main_gpio0` takes the main-domain group. The base tree leaves that pinctrl empty, so this overlay does not drop a mux the board already applied. `mcu_gpio0` takes the two MCU partners.
 
-| Header | Ball | GPIO | Pad offset | Role |
+| Header | Ball | Signal | Pad offset | Role |
 | --- | --- | --- | --- | --- |
-| P1.02 | E18 | GPIO1_10 | `0x01a0` | input |
-| P1.02A | AA19 | GPIO0_87 | `0x0164` | held off |
-| P1.04 | D20 | GPIO1_12 | `0x01a8` | input |
-| P1.04A | Y18 | GPIO0_89 | `0x016c` | held off |
-| P1.13 | N20 | GPIO0_36 | `0x0094` | input |
-| P1.19 | AD22 | GPIO1_1 | `0x017c` | input |
-| P1.21 | AE22 | GPIO1_6 | `0x0190` | input |
-| P1.23 | AC21 | GPIO1_5 | `0x018c` | input |
-| P1.25 | AB20 | GPIO1_4 | `0x0188` | input |
-| P1.27 | AE23 | GPIO1_3 | `0x0184` | input |
-| P1.29 | Y20 | GPIO0_62 | `0x00fc` | input |
-| P1.31 | Y22 | GPIO0_59 | `0x00f0` | input |
-| P1.33 | A17 | GPIO1_29 | `0x01ec` | input |
-| P1.33A | AA23 | GPIO0_56 | `0x00e4` | held off |
-| P1.34 | AD23 | GPIO1_2 | `0x0180` | input |
-| P1.35 | AE21 | GPIO0_88 | `0x0168` | input |
-| P2.02 | U22 | GPIO0_45 | `0x00b8` | input |
-| P2.03 | AB22 | GPIO0_85 | `0x015c` | input |
-| P2.03A | B18 | GPIO1_9 | `0x019c` | held off |
-| P2.04 | V24 | GPIO0_46 | `0x00bc` | input |
-| P2.06 | W25 | GPIO0_47 | `0x00c0` | input |
-| P2.08 | W24 | GPIO0_48 | `0x00c4` | input |
-| P2.09 | A15 | GPIO1_22 | `0x01d0` | input |
-| P2.09A | D4 | MCU_GPIO0_16 | `0x0040` (MCU) | held off |
-| P2.10 | AD21 | GPIO0_91 | `0x0174` | input |
-| P2.11 | B15 | GPIO1_23 | `0x01d4` | input |
-| P2.11A | E5 | MCU_GPIO0_15 | `0x003c` (MCU) | held off |
-| P2.17 | AC24 | GPIO0_64 | `0x0104` | input |
-| P2.18 | V21 | GPIO0_53 | `0x00d8` | input |
-| P2.19 | AC20 | GPIO1_0 | `0x0178` | input |
-| P2.20 | Y25 | GPIO0_49 | `0x00c8` | input |
-| P2.22 | AC25 | GPIO0_63 | `0x0100` | input |
-| P2.24 | Y23 | GPIO0_51 | `0x00d0` | input |
-| P2.28 | AB24 | GPIO0_61 | `0x00f8` | input |
-| P2.30 | AA24 | GPIO0_58 | `0x00ec` | input |
-| P2.32 | AB25 | GPIO0_57 | `0x00e8` | input |
-| P2.33 | AA25 | GPIO0_52 | `0x00d4` | input |
-| P2.34 | AA21 | GPIO0_60 | `0x00f4` | input |
-| P2.35 | W21 | GPIO0_54 | `0x00dc` | input |
-| P2.36 | C13 | GPIO1_16 | `0x01b8` | input |
+| P1.02 | E18 | `MCASP0_AXR0.GPIO1_10` | `0x01a0` | input |
+| P1.02A | AA19 | `RGMII2_TX_CTL.GPIO0_87` | `0x0164` | held off |
+| P1.04 | D20 | `MCASP0_AFSX.GPIO1_12` | `0x01a8` | input |
+| P1.04A | Y18 | `RGMII2_TD0.GPIO0_89` | `0x016c` | held off |
+| P1.13 | N20 | `GPMC0_BE1n.GPIO0_36` | `0x0094` | input |
+| P1.19 | AD22 | `RGMII2_RX_CTL.GPIO1_1` | `0x017c` | input |
+| P1.21 | AE22 | `RGMII2_RD3.GPIO1_6` | `0x0190` | input |
+| P1.23 | AC21 | `RGMII2_RD2.GPIO1_5` | `0x018c` | input |
+| P1.25 | AB20 | `RGMII2_RD1.GPIO1_4` | `0x0188` | input |
+| P1.27 | AE23 | `RGMII2_RD0.GPIO1_3` | `0x0184` | input |
+| P1.29 | Y20 | `VOUT0_DE.GPIO0_62` | `0x00fc` | input |
+| P1.31 | Y22 | `VOUT0_DATA14.GPIO0_59` | `0x00f0` | input |
+| P1.33 | A17 | `I2C1_SDA.GPIO1_29` | `0x01ec` | input |
+| P1.33A | AA23 | `VOUT0_DATA11.GPIO0_56` | `0x00e4` | held off |
+| P1.34 | AD23 | `RGMII2_RXC.GPIO1_2` | `0x0180` | input |
+| P1.35 | AE21 | `RGMII2_TXC.GPIO0_88` | `0x0168` | input |
+| P2.02 | U22 | `VOUT0_DATA0.GPIO0_45` | `0x00b8` | input |
+| P2.03 | AB22 | `MDIO0_MDIO.GPIO0_85` | `0x015c` | input |
+| P2.03A | B18 | `MCASP0_AXR1.GPIO1_9` | `0x019c` | held off |
+| P2.04 | V24 | `VOUT0_DATA1.GPIO0_46` | `0x00bc` | input |
+| P2.06 | W25 | `VOUT0_DATA2.GPIO0_47` | `0x00c0` | input |
+| P2.08 | W24 | `VOUT0_DATA3.GPIO0_48` | `0x00c4` | input |
+| P2.09 | A15 | `UART0_CTSn.GPIO1_22` | `0x01d0` | input |
+| P2.09A | D4 | `MCU_MCAN1_RX.MCU_GPIO0_16` | `0x0040` (MCU) | held off |
+| P2.10 | AD21 | `RGMII2_TD2.GPIO0_91` | `0x0174` | input |
+| P2.11 | B15 | `UART0_RTSn.GPIO1_23` | `0x01d4` | input |
+| P2.11A | E5 | `MCU_MCAN1_TX.MCU_GPIO0_15` | `0x003c` (MCU) | held off |
+| P2.17 | AC24 | `VOUT0_PCLK.GPIO0_64` | `0x0104` | input |
+| P2.18 | V21 | `VOUT0_DATA8.GPIO0_53` | `0x00d8` | input |
+| P2.19 | AC20 | `RGMII2_TD3.GPIO1_0` | `0x0178` | input |
+| P2.20 | Y25 | `VOUT0_DATA4.GPIO0_49` | `0x00c8` | input |
+| P2.22 | AC25 | `VOUT0_VSYNC.GPIO0_63` | `0x0100` | input |
+| P2.24 | Y23 | `VOUT0_DATA6.GPIO0_51` | `0x00d0` | input |
+| P2.28 | AB24 | `VOUT0_HSYNC.GPIO0_61` | `0x00f8` | input |
+| P2.30 | AA24 | `VOUT0_DATA13.GPIO0_58` | `0x00ec` | input |
+| P2.32 | AB25 | `VOUT0_DATA12.GPIO0_57` | `0x00e8` | input |
+| P2.33 | AA25 | `VOUT0_DATA7.GPIO0_52` | `0x00d4` | input |
+| P2.34 | AA21 | `VOUT0_DATA15.GPIO0_60` | `0x00f4` | input |
+| P2.35 | W21 | `VOUT0_DATA9.GPIO0_54` | `0x00dc` | input |
+| P2.36 | C13 | `SPI0_CS1.GPIO1_16` | `0x01b8` | input |
 
 P1.19, P1.21, P1.23, P1.25, P1.27, P2.02, P2.35, and P2.36 are also analog inputs on the expansion table. This overlay muxes the digital ball only.
 
@@ -104,7 +131,7 @@ Build and load, from the repo root:
 ./beagle-linux/scripts/build.sh linux
 ```
 
-That writes `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo` next to the SPI and PRU1 blobs. The Debian image loads overlays from the boot partition. Copy this blob to `/boot/firmware/overlays/` and append it to `fdtoverlays` on the default extlinux label:
+That is the one command. It fetches BeagleBoard-DeviceTrees so `ti/k3-pinctrl.h` resolves, then writes `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo` next to the SPI and PRU1 blobs. The Debian image loads overlays from the boot partition. Copy this blob to `/boot/firmware/overlays/` and append it to `fdtoverlays` on the default extlinux label:
 
 ```
 fdtoverlays /overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo /overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo

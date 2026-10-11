@@ -13,6 +13,8 @@ PSSP=$ROOT/third_party/pru-software-support-package
 PSSP_REV=28107daa1d184059f67676ba49d0fcaebb0f6a96
 ERPC=$ROOT/third_party/erpc
 ERPC_REV=1.14.0
+BBDT=$ROOT/third_party/BeagleBoard-DeviceTrees
+BBDT_REV=550f7711a4696d5f5e92505289379b754e871313
 
 IMAGE_LINUX=pb2-linux-userspace
 IMAGE_PRU=pb2-pru-cgt
@@ -31,6 +33,18 @@ fetch_erpc() {
 	git clone --depth 1 --branch "$ERPC_REV" https://github.com/EmbeddedRPC/erpc.git "$ERPC"
 }
 
+# BeagleBoard-DeviceTrees v6.18.x provides ti/k3-pinctrl.h. The overlay
+# Makefile includes that header. This repository does not vendor a copy.
+fetch_bbdt() {
+	if [[ -f $BBDT/src/arm64/ti/k3-pinctrl.h ]] && [[ $(git -C "$BBDT" rev-parse HEAD 2>/dev/null || true) == "$BBDT_REV" ]]; then
+		return
+	fi
+	rm -rf "$BBDT"
+	git clone --depth 1 https://github.com/beagleboard/BeagleBoard-DeviceTrees.git "$BBDT"
+	git -C "$BBDT" fetch --depth 1 origin "$BBDT_REV"
+	git -C "$BBDT" checkout "$BBDT_REV"
+}
+
 fetch_pssp() {
 	if [[ -f $PSSP/lib/rpmsg_lib.lib ]]; then
 		return
@@ -44,6 +58,7 @@ fetch_pssp() {
 build_linux() {
 	build_image "$IMAGE_LINUX" "$ROOT/containers/linux/Containerfile"
 	fetch_erpc
+	fetch_bbdt
 	podman run --rm --security-opt label=disable \
 		-v "$ROOT:/work" -w /work \
 		"$IMAGE_LINUX" \

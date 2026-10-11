@@ -32,6 +32,7 @@ yocto/sstate-cache/
 pru/build/
 linux-app/pb2
 beagle-linux/overlays/*.dtbo
+beagle-linux/overlays/*.dts.tmp
 *.ko
 *.o
 *.object
