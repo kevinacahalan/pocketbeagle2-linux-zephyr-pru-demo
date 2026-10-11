@@ -19,7 +19,7 @@ The Debian image already on the board. This is the active test target. It keeps 
 
 - `zephyr-m4/m4/` — M4 app, board `pocketbeagle_2/am6254/m4`
 - `zephyr-m4/include/pb2_shm.h` — mailbox header shared with the PRU
-- `manifest/west.yml` — pinned Zephyr `main` commit, `import: true`
+- `manifest/west.yml` — Zephyr tag `v4.5.0-rc1`, `import: true`
 
 `manifest/` stays at the repo root. `west init -l manifest` from the repo root sets the workspace topdir to the parent of that directory, which is where `.west/`, `zephyr/`, `modules/`, and `build/` already live. Do not run `west init -l .` from the repo root.
 
