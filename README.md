@@ -62,6 +62,8 @@ On the flashed Debian image the overlay is not applied with `dtbo`, configfs, or
 
 The same overlay also muxes main SPI2 and, once that ELF is running, `main()` clocks the five bytes `hello` at 1 MHz, mode 0, 8-bit MSB. D1 is MOSI and D0 is MISO. That pinmux is inside `pb2_m4.elf`. It is not a Debian dtbo. The M4 console UART is unwired, so the result is also written to the DDR mailbox: `spi hello ok` after the transfer returns, or `spi hello not ready` / `spi hello fail <errno>` if it does not.
 
+That main pinmux is a bare `pinctrl@f4000`. Upstream, main padcfg is a child of the `ti,control-module` syscon at `0xf0000`, and that syscon is what the M4 unlocks at boot. This image does not unlock main padcfg itself. CLK and MOSI already toggle, so Linux has been unlocking that block.
+
 ## SPI hello
 
 Linux and Zephyr use different controllers. Linux uses main SPI0 (`0x20100000`). Zephyr uses main SPI2 (`0x20120000`). Mode 0 on the SPI0 balls and mode 1 on the SPI2 balls are the SPI functions. The PRU GPO/GPI modes on those balls are other mux values and are not selected. The M4 console is MCU UART0 on P2.05A (ball B5) and P2.07A (ball A5); those pads are not in either overlay. RPMsg does not use header pins.
