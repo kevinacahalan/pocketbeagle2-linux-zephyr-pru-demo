@@ -1,4 +1,4 @@
-# Linux userspace image for pb2-ipc, pb2-spi, and the device-tree overlays.
+# Linux userspace image for linux-app/ and the Debian device-tree overlays.
 # The same image cross-compiles the out-of-tree pru_rproc module.
 FROM docker.io/library/debian:13
 

@@ -1,5 +1,5 @@
 SUMMARY = "PocketBeagle 2 Linux demo (pb2-ipc and pb2-spi)"
-DESCRIPTION = "Cross-compiles the in-tree userspace demo and its device-tree overlays, and installs the pb2-demo runner. EmbeddedRPC is fetched and compiled."
+DESCRIPTION = "Cross-compiles linux-app and the Debian device-tree overlays, and installs the pb2-demo runner. EmbeddedRPC is fetched and compiled."
 LICENSE = "BSD-3-Clause & CLOSED"
 LIC_FILES_CHKSUM = "file://third_party/erpc/LICENSE;md5=b66f32a90f9577a5a3255c21d79bc619"
 
@@ -8,14 +8,16 @@ DEPENDS = "dtc-native"
 FILESEXTRAPATHS:prepend := "${@os.path.abspath(os.path.join(os.path.dirname(d.getVar('FILE')), '..', '..', '..', '..', '..'))}/:"
 
 SRC_URI = " \
-    file://beagle-linux/linux/pb2-ipc.c;subdir=src \
-    file://beagle-linux/linux/pb2-spi.c;subdir=src \
-    file://beagle-linux/linux/pb2_erpc_linux.cpp;subdir=src \
-    file://beagle-linux/linux/pb2_erpc_linux.h;subdir=src \
-    file://beagle-linux/linux/erpc_config.h;subdir=src \
-    file://beagle-linux/linux/Makefile;subdir=src \
-    file://beagle-linux/linux/k3-am62-pocketbeagle2-spi0-hello.dtso;subdir=src \
-    file://beagle-linux/linux/k3-am62-pocketbeagle2-pru1-xy.dtso;subdir=src \
+    file://linux-app/pb2-ipc.c;subdir=src \
+    file://linux-app/pb2-spi.c;subdir=src \
+    file://linux-app/pb2_erpc_linux.cpp;subdir=src \
+    file://linux-app/pb2_erpc_linux.h;subdir=src \
+    file://linux-app/erpc_config.h;subdir=src \
+    file://linux-app/Makefile;subdir=src \
+    file://beagle-linux/overlays/Makefile;subdir=src \
+    file://beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtso;subdir=src \
+    file://beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtso;subdir=src \
+    file://beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtso;subdir=src \
     file://zephyr-m4/include/pb2_shm.h;subdir=src \
     file://zephyr-m4/erpc/shim;subdir=src \
     file://beagle-linux/scripts/pb2-demo;subdir=src \
@@ -32,29 +34,32 @@ do_configure[noexec] = "1"
 do_compile () {
     # Drop anything a host build may have left in the fetched tree, then
     # compile with the Yocto compiler. The Makefile links with CXXFLAGS.
-    rm -f ${S}/beagle-linux/linux/pb2-ipc \
-        ${S}/beagle-linux/linux/pb2-spi \
-        ${S}/beagle-linux/linux/*.o \
-        ${S}/beagle-linux/linux/*.dtbo
-    oe_runmake -C ${S}/beagle-linux/linux \
+    rm -f ${S}/linux-app/pb2-ipc \
+        ${S}/linux-app/pb2-spi \
+        ${S}/linux-app/*.o \
+        ${S}/beagle-linux/overlays/*.dtbo
+    oe_runmake -C ${S}/linux-app \
         CC="${CC}" \
         CXX="${CXX}" \
         CFLAGS="${CFLAGS}" \
         LDFLAGS="${LDFLAGS}" \
         CXXFLAGS="${CXXFLAGS} -std=c++17 -fno-exceptions -fno-rtti"
+    oe_runmake -C ${S}/beagle-linux/overlays
 }
 
 do_install () {
     install -d ${D}${bindir}
     install -d ${D}${nonarch_base_libdir}/firmware
-    install -m 0755 ${S}/beagle-linux/linux/pb2-ipc ${D}${bindir}/pb2-ipc
-    install -m 0755 ${S}/beagle-linux/linux/pb2-spi ${D}${bindir}/pb2-spi
+    install -m 0755 ${S}/linux-app/pb2-ipc ${D}${bindir}/pb2-ipc
+    install -m 0755 ${S}/linux-app/pb2-spi ${D}${bindir}/pb2-spi
     install -m 0755 ${S}/beagle-linux/scripts/pb2-demo ${D}${bindir}/pb2-demo
     # Overlays are built here and installed as files. They are not added
     # to the boot fdtoverlays list.
-    install -m 0644 ${S}/beagle-linux/linux/k3-am62-pocketbeagle2-spi0-hello.dtbo \
+    install -m 0644 ${S}/beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo \
         ${D}${nonarch_base_libdir}/firmware/
-    install -m 0644 ${S}/beagle-linux/linux/k3-am62-pocketbeagle2-pru1-xy.dtbo \
+    install -m 0644 ${S}/beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtbo \
+        ${D}${nonarch_base_libdir}/firmware/
+    install -m 0644 ${S}/beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo \
         ${D}${nonarch_base_libdir}/firmware/
 }
 

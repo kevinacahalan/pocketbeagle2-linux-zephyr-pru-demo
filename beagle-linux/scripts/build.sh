@@ -45,9 +45,9 @@ build_linux() {
 	build_image "$IMAGE_LINUX" "$ROOT/containers/linux/Containerfile"
 	fetch_erpc
 	podman run --rm --security-opt label=disable \
-		-v "$ROOT:/work" -w /work/beagle-linux/linux \
+		-v "$ROOT:/work" -w /work \
 		"$IMAGE_LINUX" \
-		make clean all
+		bash -lc 'make -C linux-app clean all && make -C beagle-linux/overlays clean all'
 }
 
 build_pru() {

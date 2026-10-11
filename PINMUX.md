@@ -1,0 +1,147 @@
+# Pinmux
+
+This example muxes pins from three places: the Linux SPI0 overlay, the Zephyr M4 devicetree overlay, and the PRU1 transmit overlay. A fourth Linux overlay muxes the header GPIOs those cores do not already use. RPMsg does not use a header pin. PRU0 does not mux a header pin.
+
+No pin this example muxes is an LED, and the example does not drive an LED. The four green user LEDs are on the board, not on header P1 or P2. The board tree muxes them, and the kernel LED triggers own them. See [Board LEDs](#board-leds).
+
+Pad values below are what this example writes. `0x54007` is mode 7 with the receiver enabled (an input GPIO, the same value the board tree uses). `0x200007` is mode 7 with the output held off, for a ball shorted to the header pin. `0x10000` is a mode 0 output. `0x10002` is a mode 2 output.
+
+## Linux SPI0
+
+Core: Linux, main SPI0 at `0x20100000`. Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtso`. Mode 0 is the SPI function.
+
+| Signal | Header | Ball | Pad offset | Value |
+| --- | --- | --- | --- | --- |
+| CLK | P2.29 | A14 | `0x01bc` | `0x10000` output |
+| MOSI (SPI0_D1) | P2.25 | B14 | `0x01c4` | `0x10000` output |
+| MISO (SPI0_D0) | P2.27 | B13 | `0x01c0` | `0x54000` input |
+| CS0 | P2.31 | A13 | `0x01b4` | `0x10000` output |
+| held off | P2.29A | M22 | `0x00a4` | `0x200007` |
+| held off | P2.31A | AA18 | `0x0170` | `0x200007` |
+
+P2.29A and P2.31A are shorted to the clock and chip-select pins. They are not driven. No LED.
+
+## Zephyr SPI2
+
+Core: Zephyr on the M4. The pinmux is inside `pb2_m4.elf`, from `zephyr-m4/m4/boards/pocketbeagle_2_am6254_m4.overlay`. It is not a Debian dtbo. Mode 1 is the SPI2 function. Controller: main SPI2 at `0x20120000`.
+
+| Signal | Header | Ball | Pad offset | Mux |
+| --- | --- | --- | --- | --- |
+| CLK | P1.08 | A20 | `0x01b0` | mode 1 output |
+| MOSI (SPI2_D1) | P1.12 | A19 | `0x0198` | mode 1 output |
+| MISO (SPI2_D0) | P1.10 | B19 | `0x0194` | mode 1 input |
+| CS0 | P1.06 | E19 | `0x01ac` | mode 1 output |
+| held off | P1.06A | AD18 | `0x0140` | mode 7, output off |
+| held off | P1.10 partner | A18 | `0x01f0` | mode 7, output off |
+| held off | P1.12A | AE18 | `0x013c` | mode 7, output off |
+
+The board tree names ball B19 `P1.10(B19)` (GPIO1 line 7) and ball A18 `P1.10(A18)` (GPIO1 line 30). The expansion table prints those two balls in the other order. This file follows the board tree and the Zephyr overlay: B19 is the MISO pin, A18 is the shorted partner and is held off. No LED.
+
+## PRU1 transmit
+
+Core: PRU1. Linux applies the pad; PRU1 drives R30 bit 5. Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtso`.
+
+| Signal | Header | Ball | Pad offset | Value |
+| --- | --- | --- | --- | --- |
+| TX (`PR0_PRU1_GPO5`) | P1.20 | Y24 | `0x00cc` | `0x10002` mode 2 output |
+
+One ball. Not an SPI0 or SPI2 pin. No LED. The wire has not been scoped.
+
+## Leftover GPIOs
+
+Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtso`. Every pin in that file is a leftover: muxed as a Linux GPIO, and not used by the demo. The active ball is an input (`0x54007`). A shorted partner is held off (`0x200007`) so it does not fight the header pin. The demo does not read or drive these lines. No LED.
+
+`main_gpio0` takes the main-domain group. The base tree leaves that pinctrl empty, so this overlay does not drop a mux the board already applied. `mcu_gpio0` takes the two MCU partners.
+
+| Header | Ball | GPIO | Pad offset | Role |
+| --- | --- | --- | --- | --- |
+| P1.02 | E18 | GPIO1_10 | `0x01a0` | input |
+| P1.02A | AA19 | GPIO0_87 | `0x0164` | held off |
+| P1.04 | D20 | GPIO1_12 | `0x01a8` | input |
+| P1.04A | Y18 | GPIO0_89 | `0x016c` | held off |
+| P1.13 | N20 | GPIO0_36 | `0x0094` | input |
+| P1.19 | AD22 | GPIO1_1 | `0x017c` | input |
+| P1.21 | AE22 | GPIO1_6 | `0x0190` | input |
+| P1.23 | AC21 | GPIO1_5 | `0x018c` | input |
+| P1.25 | AB20 | GPIO1_4 | `0x0188` | input |
+| P1.27 | AE23 | GPIO1_3 | `0x0184` | input |
+| P1.29 | Y20 | GPIO0_62 | `0x00fc` | input |
+| P1.31 | Y22 | GPIO0_59 | `0x00f0` | input |
+| P1.33 | A17 | GPIO1_29 | `0x01ec` | input |
+| P1.33A | AA23 | GPIO0_56 | `0x00e4` | held off |
+| P1.34 | AD23 | GPIO1_2 | `0x0180` | input |
+| P1.35 | AE21 | GPIO0_88 | `0x0168` | input |
+| P2.02 | U22 | GPIO0_45 | `0x00b8` | input |
+| P2.03 | AB22 | GPIO0_85 | `0x015c` | input |
+| P2.03A | B18 | GPIO1_9 | `0x019c` | held off |
+| P2.04 | V24 | GPIO0_46 | `0x00bc` | input |
+| P2.06 | W25 | GPIO0_47 | `0x00c0` | input |
+| P2.08 | W24 | GPIO0_48 | `0x00c4` | input |
+| P2.09 | A15 | GPIO1_22 | `0x01d0` | input |
+| P2.09A | D4 | MCU_GPIO0_16 | `0x0040` (MCU) | held off |
+| P2.10 | AD21 | GPIO0_91 | `0x0174` | input |
+| P2.11 | B15 | GPIO1_23 | `0x01d4` | input |
+| P2.11A | E5 | MCU_GPIO0_15 | `0x003c` (MCU) | held off |
+| P2.17 | AC24 | GPIO0_64 | `0x0104` | input |
+| P2.18 | V21 | GPIO0_53 | `0x00d8` | input |
+| P2.19 | AC20 | GPIO1_0 | `0x0178` | input |
+| P2.20 | Y25 | GPIO0_49 | `0x00c8` | input |
+| P2.22 | AC25 | GPIO0_63 | `0x0100` | input |
+| P2.24 | Y23 | GPIO0_51 | `0x00d0` | input |
+| P2.28 | AB24 | GPIO0_61 | `0x00f8` | input |
+| P2.30 | AA24 | GPIO0_58 | `0x00ec` | input |
+| P2.32 | AB25 | GPIO0_57 | `0x00e8` | input |
+| P2.33 | AA25 | GPIO0_52 | `0x00d4` | input |
+| P2.34 | AA21 | GPIO0_60 | `0x00f4` | input |
+| P2.35 | W21 | GPIO0_54 | `0x00dc` | input |
+| P2.36 | C13 | GPIO1_16 | `0x01b8` | input |
+
+P1.19, P1.21, P1.23, P1.25, P1.27, P2.02, P2.35, and P2.36 are also analog inputs on the expansion table. This overlay muxes the digital ball only.
+
+Build and load, from the repo root:
+
+```
+./beagle-linux/scripts/build.sh linux
+```
+
+That writes `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo` next to the SPI and PRU1 blobs. The Debian image loads overlays from the boot partition. Copy this blob to `/boot/firmware/overlays/` and append it to `fdtoverlays` on the default extlinux label:
+
+```
+fdtoverlays /overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo /overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo
+```
+
+The pad change waits until the next boot. The Yocto image installs the blob under `/lib/firmware` and does not add it to the boot list. `78000000.r5f` is not stopped or reloaded.
+
+## Left on the board
+
+These header pins are not leftovers. The overlay does not take them.
+
+| Header | Ball | Why it stays |
+| --- | --- | --- |
+| P1.06, P1.06A, P1.08, P1.10, P1.10 partner, P1.12, P1.12A | E19, AD18, A20, B19, A18, A19, AE18 | Zephyr SPI2 |
+| P1.20 | Y24 | PRU1 transmit |
+| P1.26, P1.26A | K24, D6 | Linux I2C2 data (mode 1 on K24). The shorted MCU ball is left alone. |
+| P1.28, P1.28A | K22, B3 | Linux I2C2 clock (mode 1 on K22). The shorted MCU ball is left alone. |
+| P1.30 | E14 | Linux UART0 TX, board console, pad `0x01cc` |
+| P1.32 | D14 | Linux UART0 RX, board console, pad `0x01c8` |
+| P1.36, P1.36 partner | B17, V20 | Linux EHRPWM2 on B17, pad `0x01e8` mode 8. The shorted ball is not enabled here. |
+| P2.01, P2.01A | B20, AD24 | Linux ECAP2 on B20. AD24 is already held off by the board tree. |
+| P2.05, P2.05A | C15, B5 | M4 console, MCU UART0 RX on B5, MCU pad `0x0014`. The shorted main ball is not taken. |
+| P2.07, P2.07A | E15, A5 | M4 console, MCU UART0 TX on A5, MCU pad `0x0018`. The shorted main ball is not taken. |
+| P2.25, P2.27, P2.29, P2.29A, P2.31, P2.31A | B14, B13, A14, M22, A13, AA18 | Linux SPI0 |
+| P1.03 | F18 | Board USB1_DRVVBUS, pad `0x0258` mode 0. Not a demo GPIO. |
+
+Power, ground, USB data, and the analog reference pins are not GPIO pads and are not in the overlay. The M4 console balls are on the header; this example does not mux them, and no adapter is attached, so M4 `printk` is invisible. The visible Zephyr console is RPMsg.
+
+## Board LEDs
+
+This example does not mux or drive an LED.
+
+The board tree's `led-default-pins` group muxes four on-board green LEDs as GPIO outputs (`0x10007`, mode 7). They are not header pins. The kernel `gpio-leds` node owns them:
+
+| Label | Ball | Pad offset | GPIO | What controls it |
+| --- | --- | --- | --- | --- |
+| `beaglebone:green:usr1` | F24 | `0x0018` | GPIO0_6 | `heartbeat` |
+| `beaglebone:green:usr2` | F25 | `0x0014` | GPIO0_5 | `mmc1` |
+| `beaglebone:green:usr3` | G24 | `0x0010` | GPIO0_4 | `activity` |
+| `beaglebone:green:usr4` | E25 | `0x000c` | GPIO0_3 | default off, no trigger |

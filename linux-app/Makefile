@@ -3,7 +3,7 @@ CXX = aarch64-linux-gnu-g++
 CFLAGS = -O2 -Wall -Wextra -std=c11
 CXXFLAGS = -O2 -Wall -Wextra -std=c++17 -fno-exceptions -fno-rtti
 
-ROOT := $(abspath ../..)
+ROOT := $(abspath ..)
 ERPC := $(ROOT)/third_party/erpc
 SHIM := $(ROOT)/zephyr-m4/erpc/shim
 INCLUDES = -I. -I$(SHIM) -I$(ROOT)/zephyr-m4/include \
@@ -27,8 +27,7 @@ ERPC_SRCS = \
 	$(SHIM)/pb2_interface.cpp \
 	pb2_erpc_linux.cpp
 
-all: pb2-ipc pb2-spi k3-am62-pocketbeagle2-spi0-hello.dtbo \
-	k3-am62-pocketbeagle2-pru1-xy.dtbo
+all: pb2-ipc pb2-spi
 
 pb2-ipc: pb2-ipc.o $(ERPC_SRCS)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDES) -o $@ pb2-ipc.o $(ERPC_SRCS)
@@ -39,12 +38,5 @@ pb2-ipc.o: pb2-ipc.c pb2_erpc_linux.h
 pb2-spi: pb2-spi.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ pb2-spi.c
 
-k3-am62-pocketbeagle2-spi0-hello.dtbo: k3-am62-pocketbeagle2-spi0-hello.dtso
-	dtc -@ -I dts -O dtb -o $@ $<
-
-k3-am62-pocketbeagle2-pru1-xy.dtbo: k3-am62-pocketbeagle2-pru1-xy.dtso
-	dtc -@ -I dts -O dtb -o $@ $<
-
 clean:
-	rm -f pb2-ipc pb2-spi pb2-ipc.o k3-am62-pocketbeagle2-spi0-hello.dtbo \
-		k3-am62-pocketbeagle2-pru1-xy.dtbo
+	rm -f pb2-ipc pb2-spi pb2-ipc.o

@@ -16,7 +16,7 @@ Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`
    ./beagle-linux/scripts/build.sh linux
    ```
 
-   Output: `beagle-linux/linux/pb2-ipc`.
+   Output: `linux-app/pb2-ipc` and `linux-app/pb2-spi`. The same step builds the Debian overlays in `beagle-linux/overlays/`, including `k3-am62-pocketbeagle2-leftover-gpio.dtbo`. `PINMUX.md` lists every pin those overlays mux.
 
 2. PRU firmware, image `pb2-pru-cgt` from `containers/pru-cgt/Containerfile`. The first stage installs TI CGT 2.3.3 on Debian 10, because the installer is a 32-bit stub that needs that older glibc. The second stage is Debian 13 with `clpru` at `/opt/ti-cgt-pru`. The firmware is compiled there.
 
@@ -94,9 +94,9 @@ P1.06A (ball AD18), P1.10's other ball A18, and P1.12A (ball AE18) are disabled.
 
 ### Linux overlay file, build, and load
 
-Source: `beagle-linux/linux/k3-am62-pocketbeagle2-spi0-hello.dtso`.
+Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtso`.
 
-`./beagle-linux/scripts/build.sh linux` builds it in the Linux userspace image with `dtc`, along with `pb2-ipc` and `pb2-spi`. The blob is `beagle-linux/linux/k3-am62-pocketbeagle2-spi0-hello.dtbo`.
+`./beagle-linux/scripts/build.sh linux` builds it in the Linux userspace image with `dtc`, along with `pb2-ipc` and `pb2-spi`. The blob is `beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo`.
 
 The flashed image loads overlays from the boot partition, not from configfs (`/sys/kernel/config` on this image has no device-tree overlays). Copy the blob to `/boot/firmware/overlays/`, then on the default label in `/boot/firmware/extlinux/extlinux.conf` set:
 
@@ -149,7 +149,9 @@ If a payload byte (X, Y, or the XOR) is `0xC0`, those two bytes on the wire are 
 
 The pin is header P1.20, ball Y24, pad offset `0x00cc`, mux mode 2 (`PR0_PRU1_GPO5`), which is PRU1 R30 bit 5. It is not a Linux SPI0 pin (P2.29, P2.25, P2.27, P2.31) and not a Zephyr SPI2 pin (P1.08, P1.12, P1.10, P1.06). The expansion table shows one ball on P1.20.
 
-Source: `beagle-linux/linux/k3-am62-pocketbeagle2-pru1-xy.dtso`. `./beagle-linux/scripts/build.sh linux` builds the blob with `dtc` next to the SPI overlay. Copy it to `/boot/firmware/overlays/` and add it to `fdtoverlays` on the default extlinux label, the same way as the SPI overlay. The PRUSS node takes that pin group. The pad does not change until the next boot. This repository does not include a capture of P1.20.
+Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtso`. `./beagle-linux/scripts/build.sh linux` builds the blob with `dtc` next to the SPI overlay. Copy it to `/boot/firmware/overlays/` and add it to `fdtoverlays` on the default extlinux label, the same way as the SPI overlay. The PRUSS node takes that pin group. The pad does not change until the next boot. This repository does not include a capture of P1.20.
+
+Header pins that Linux, Zephyr, and the PRUs do not already use are muxed as input GPIOs by `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtso`. Each of those pins is commented as a leftover. The same `build.sh linux` step writes `k3-am62-pocketbeagle2-leftover-gpio.dtbo`. Load it the same way as the SPI overlay: copy the blob to `/boot/firmware/overlays/` and append it to `fdtoverlays` on the default extlinux label. It is not on the boot list until you add it, and the image recipe does not add it. The full pin list is `PINMUX.md`. None of these pins is an LED.
 
 From the linux window the commands are `pru0 xy <x> <y>` and `zephyr xy <x> <y>`. PRU0's RPMsg reply names who asked and what it wrote for PRU1. `pb2-ipc xy` prints the shared record, including `consumed`.
 
@@ -192,7 +194,7 @@ The Debian image does not ship this runner. Copy the binaries and firmware into 
 
 ```
 export PB2_SSH=user@board
-scp beagle-linux/linux/pb2-ipc beagle-linux/scripts/pb2-demo \
+scp linux-app/pb2-ipc beagle-linux/scripts/pb2-demo \
   pru/build/am62x-pru0-fw pru/build/am62x-pru1-fw \
   build/zephyr/pb2_m4.elf \
   "$PB2_SSH":/tmp/
@@ -274,7 +276,7 @@ pru1 tick moved 50282 -> 50780
 
 ## Checked in and temporary
 
-Checked in: `beagle-linux/`, `containers/`, `zephyr-m4/`, `pru/` sources, `yocto/`, `manifest/west.yml`, this README, and `LAYOUT.md`.
+Checked in: `linux-app/`, `beagle-linux/`, `containers/`, `zephyr-m4/`, `pru/` sources, `yocto/`, `manifest/west.yml`, `PINMUX.md`, this README, and `LAYOUT.md`.
 
 Left on disk and not committed:
 
@@ -284,7 +286,7 @@ Left on disk and not committed:
 | `third_party/` | PRU software support package and EmbeddedRPC clones |
 | `.cache/` | TI CGT install and kernel headers |
 | `pru/build/` | PRU firmware images |
-| `beagle-linux/linux/pb2-ipc`, `beagle-linux/linux/pb2-spi` | userspace binaries |
+| `linux-app/pb2-ipc`, `linux-app/pb2-spi` | userspace binaries |
 | `*.ko` | kernel modules, including patched `pru_rproc` |
 
 ## Reach the board
@@ -298,4 +300,4 @@ ssh "$PB2_SSH"
 
 `user@board` is a placeholder. Use the account and address you assigned.
 
-A serial console is optional, 115200 8N1. The M4 UART is not wired to a header; the visible Zephyr console is the RPMsg window.
+A serial console is optional, 115200 8N1. The M4 console balls are header P2.05A and P2.07A, and no adapter is attached, so `printk` is invisible. The visible Zephyr console is the RPMsg window. `PINMUX.md` is the pin list.

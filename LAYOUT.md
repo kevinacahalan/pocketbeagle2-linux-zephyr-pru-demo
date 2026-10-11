@@ -1,12 +1,16 @@
 # Layout
 
-The root keeps this note, `README.md`, `.gitignore`, `manifest/` (the west manifest), and `containers/` (the three build images). Generated trees stay at the root and are not committed.
+The root keeps this note, `README.md`, `PINMUX.md`, `.gitignore`, `linux-app/`, `manifest/` (the west manifest), and `containers/` (the three build images). Generated trees stay at the root and are not committed.
+
+## Linux app — `linux-app/`
+
+Userspace IPC (`pb2-ipc`, `pb2-spi`). Both the Debian build and the Yocto recipe compile this directory. It is not a board-specific tree.
 
 ## Beagle Linux — `beagle-linux/`
 
-The Debian image already on the board. This is the active test target.
+The Debian image already on the board. This is the active test target. It keeps the Debian pieces only.
 
-- `beagle-linux/linux/` — userspace IPC (`pb2-ipc`, `pb2-spi`)
+- `beagle-linux/overlays/` — device-tree overlays, including `k3-am62-pocketbeagle2-leftover-gpio.dtso`
 - `beagle-linux/kernel/pru_rproc/` — patched `pru_rproc` with virtio kick
 - `beagle-linux/scripts/build.sh` — builds the container images, then compiles
 - `beagle-linux/scripts/pb2-demo` — on-target runner, installed as `/usr/bin/pb2-demo`
@@ -25,7 +29,7 @@ The Debian image already on the board. This is the active test target.
 
 ## Yocto — `yocto/`
 
-`yocto/kas/pb2-poky.yml` is the kas-container config for `pb2-demo-image`, a minimum Poky image for machine `pocketbeagle2`. `yocto/layers/meta-pb2` compiles the Linux demo, the Zephyr M4 firmware, and both PRU firmwares, and installs `pb2-demo` on `PATH`. The image does not start those cores at boot. `yocto/sources/`, `yocto/downloads/`, and `yocto/build/` are generated and not committed. The build does not flash the board. The Debian image under `beagle-linux/` stays the active test target.
+`yocto/kas/pb2-poky.yml` is the kas-container config for `pb2-demo-image`, a minimum Poky image for machine `pocketbeagle2`. `yocto/layers/meta-pb2` compiles `linux-app/`, the Zephyr M4 firmware, and both PRU firmwares, and installs `pb2-demo` on `PATH`. The image does not start those cores at boot. `yocto/sources/`, `yocto/downloads/`, and `yocto/build/` are generated and not committed. The build does not flash the board. The Debian image under `beagle-linux/` stays the active test target.
 
 ## Containers — `containers/`
 
