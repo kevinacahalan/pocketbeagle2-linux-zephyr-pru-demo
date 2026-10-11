@@ -1,6 +1,6 @@
 # PocketBeagle 2: Linux, Zephyr, and PRU
 
-Linux on the A53s calls Zephyr functions over eRPC on the existing RPMsg channel, and commands PRU0 over RPMsg. Zephyr asks PRU0 through a small DDR mailbox. PRU0 is the transfer core: it arms PRU1 in PRU shared RAM, and it also writes a 32-bit X and a 32-bit Y there. PRU1 does not use RPMsg. It runs a cycle-counted loop, samples the arm block once per period, and when the X/Y sequence changes it shifts that pair out on a header pin. Linux hands Zephyr bulk chunks through a separate DDR region (`zephyr-m4/include/pb2_shm.h`). The device-manager R5 is not loaded or stopped.
+Linux on the A53s calls Zephyr functions over eRPC on the existing RPMsg channel, and commands PRU0 over RPMsg. PRU0 is the transfer core: it arms PRU1 in PRU shared RAM, and it also writes a 32-bit X and a 32-bit Y there. PRU1 does not use RPMsg. It runs a cycle-counted loop, samples the arm block once per period, and when the X/Y sequence changes it shifts that pair out on a header pin. Linux hands Zephyr bulk chunks through a separate DDR region (`zephyr-m4/include/pb2_shm.h`). The device-manager R5 is not loaded or stopped.
 
 Host compiles run in containers. `LAYOUT.md` is the directory map. `78000000.r5f` is not loaded or stopped.
 
@@ -107,7 +107,7 @@ On the Debian image the overlay is not applied with `dtbo`, configfs, or a reboo
 
 The same overlay also muxes main SPI2 and, once that ELF is running, `main()` clocks the five bytes `hello` at 1 MHz, mode 0, 8-bit MSB. D1 is MOSI and D0 is MISO. That pinmux is inside `pb2_m4.elf`. It is not a Debian dtbo. The M4 console UART is unwired, so the result is also written to the DDR mailbox: `spi hello ok` after the transfer returns, or `spi hello not ready` / `spi hello fail <errno>` if it does not.
 
-That main pinmux is a bare `pinctrl@f4000`. Upstream, main padcfg is a child of the `ti,control-module` syscon at `0xf0000`, and that syscon is what the M4 unlocks at boot. This overlay does not unlock main padcfg itself. The BeagleBoard Debian kernel does.
+That main pinmux is a bare `pinctrl@f4000`. The M4 does not unlock the `ti,control-module` syscon at `0xf0000`. The Debian kernel does, and that is why CLK and MOSI can toggle.
 
 ## SPI hello
 
