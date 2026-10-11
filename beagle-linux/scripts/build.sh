@@ -125,7 +125,13 @@ build_zephyr() {
 			if [[ ! -d .west ]]; then
 				west init -l manifest
 			fi
+			# west update checks out Zephyr and drops local edits. The
+			# McSPI patch is applied again onto that checkout.
+			if [[ -d zephyr/.git || -f zephyr/.git ]]; then
+				git -C zephyr checkout -- drivers/spi/spi_omap_mcspi.c || true
+			fi
 			west update
+			zephyr-m4/scripts/apply-patches.sh
 			west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4 -p always'
 }
 

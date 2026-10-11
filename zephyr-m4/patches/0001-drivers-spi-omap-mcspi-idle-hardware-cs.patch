@@ -1,0 +1,118 @@
+drivers: spi: omap_mcspi: idle hardware CS by toggling FORCE
+
+McSPI keeps the previous SPIEN level until FORCE is written set and
+then clear. One CHCONF write that sets FORCE leaves an active-low
+chip-select asserted, including through every clock and after the
+transfer. Write the channel config with FORCE set, then with FORCE
+clear, so the inactive level sticks and an active-low chip-select
+idles high. Assert FORCE for the transfer and clear it when the
+transfer ends.
+
+A GPIO chip-select still leaves FORCE clear. SPI_CS_ACTIVE_HIGH still
+only selects EPOL.
+
+---
+ drivers/spi/spi_omap_mcspi.c | 51 +++++++++++++++++++++++++++++++++++--------
+ 1 file changed, 43 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/spi/spi_omap_mcspi.c b/drivers/spi/spi_omap_mcspi.c
+--- a/drivers/spi/spi_omap_mcspi.c
++++ b/drivers/spi/spi_omap_mcspi.c
+@@ -120,6 +120,16 @@
+ 	}
+ }
+ 
++/* FORCE is the manual SPIEN level. A posted write is not visible to the
++ * pin until the register is read back.
++ */
++static void omap_mcspi_write_chconf(struct omap_mcspi_regs *regs, uint8_t chan,
++				    uint32_t chconf)
++{
++	regs->CHAN[chan].CHCONF = chconf;
++	(void)regs->CHAN[chan].CHCONF;
++}
++
+ static void omap_mcspi_set_mode(const struct device *dev, bool is_peripheral)
+ {
+ 	struct omap_mcspi_regs *regs = DEV_REGS(dev);
+@@ -294,18 +304,24 @@
+ 		data->chconf &= ~OMAP_MCSPI_CHCONF_PHA;
+ 	}
+ 
+-	/* set force */
+-	if (!spi_cs_is_gpio(config)) {
+-		data->chconf |= OMAP_MCSPI_CHCONF_FORCE;
+-	} else {
+-		data->chconf &= ~OMAP_MCSPI_CHCONF_FORCE;
+-	}
+-
+ 	rv = omap_mcspi_configure_clk_freq(dev, config->frequency, cfg->clock_frequency);
+ 	if (rv != 0) {
+ 		return rv;
+ 	}
+ 
++	/* FORCE clear is the inactive SPIEN level. This controller keeps the
++	 * previous level until FORCE is written set and then clear, so an
++	 * active-low chip-select stays low if FORCE is only set once.
++	 * Program the inactive level here. The transfer sets FORCE for the
++	 * message and clears it when the message ends. A GPIO chip-select
++	 * leaves the native SPIEN inactive and does not toggle FORCE.
++	 */
++	data->chconf &= ~OMAP_MCSPI_CHCONF_FORCE;
++	if (!spi_cs_is_gpio(config)) {
++		omap_mcspi_write_chconf(regs, chan, data->chconf | OMAP_MCSPI_CHCONF_FORCE);
++		omap_mcspi_write_chconf(regs, chan, data->chconf);
++	}
++
+ 	/* save config in the context */
+ 	ctx->config = config;
+ 	return 0;
+@@ -520,7 +536,7 @@
+ 	}
+ 
+ 	/* write chconf and chctrl */
+-	regs->CHAN[chan].CHCONF = data->chconf;
++	omap_mcspi_write_chconf(regs, chan, data->chconf);
+ 	regs->CHAN[chan].CHCTRL = data->chctrl;
+ 
+ 	/* write WCNT */
+@@ -555,6 +571,7 @@
+ 	struct omap_mcspi_data *data = DEV_DATA(dev);
+ 	struct spi_context *ctx = &data->ctx;
+ 	int ret = 0;
++	bool hw_cs = false;
+ 
+ 	if (!tx_bufs && !rx_bufs) {
+ 		return 0;
+@@ -568,6 +585,14 @@
+ 		goto cleanup;
+ 	}
+ 
++	/* Assert hardware SPIEN for every chunk of this message. The cache
++	 * stays clear of FORCE until here, so the pin can idle inactive.
++	 */
++	hw_cs = !spi_cs_is_gpio(config);
++	if (hw_cs) {
++		data->chconf |= OMAP_MCSPI_CHCONF_FORCE;
++	}
++
+ 	spi_context_buffers_setup(ctx, tx_bufs, rx_bufs, data->dfs);
+ 
+ 	spi_context_cs_control(ctx, true);
+@@ -584,6 +609,16 @@
+ 
+ cleanup:
+ 	spi_context_cs_control(ctx, false);
++	if (hw_cs) {
++		struct omap_mcspi_regs *regs = DEV_REGS(dev);
++
++		/* Drop SPIEN after the channel is idle. FORCE stays set
++		 * through the last clock, then this write releases it.
++		 */
++		omap_mcspi_channel_enable(dev, false);
++		data->chconf &= ~OMAP_MCSPI_CHCONF_FORCE;
++		omap_mcspi_write_chconf(regs, config->slave, data->chconf);
++	}
+ 
+ 	if (!(config->operation & SPI_LOCK_ON)) {
+ 		spi_context_release(ctx, ret);

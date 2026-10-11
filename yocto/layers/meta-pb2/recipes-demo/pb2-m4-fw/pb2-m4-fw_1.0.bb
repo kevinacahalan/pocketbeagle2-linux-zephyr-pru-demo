@@ -59,6 +59,7 @@ do_compile () {
     cd "$ws"
     west init -l manifest
     west update
+    "$ws/zephyr-m4/scripts/apply-patches.sh"
     if [ -f zephyr/scripts/requirements-base.txt ]; then
         pip3 install --target ${WORKDIR}/py -r zephyr/scripts/requirements-base.txt
     fi

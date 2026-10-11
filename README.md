@@ -26,7 +26,7 @@ Every compile runs in a container. The script is `beagle-linux/scripts/build.sh`
 
    PRU0, the transfer core, is `pru/pru0/` (`main.c` and `AM62x_PRU0.cmd`). PRU1, the SLIP frame, is `pru/pru1/`: the sample loop is `main.c`, the pin shifting is `slip_tx.asm`, and the linker script is `AM62x_PRU1.cmd`. Output: `pru/build/am62x-pru0-fw` and `pru/build/am62x-pru1-fw`.
 
-3. Zephyr on the M4, image `pb2-zephyr-sdk` from `containers/zephyr/Containerfile`. That image is the Zephyr CI image with `ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1`. The container runs `west init -l manifest` from the repo root when `.west/` is missing, then `west update` and `west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4`. Do not run `west init -l .` from the repo root.
+3. Zephyr on the M4, image `pb2-zephyr-sdk` from `containers/zephyr/Containerfile`. That image is the Zephyr CI image with `ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1`. The container runs `west init -l manifest` from the repo root when `.west/` is missing, then `west update`, `zephyr-m4/scripts/apply-patches.sh`, and `west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4`. `west update` checks out Zephyr v4.4.2 and drops local edits, so that script reapplies `zephyr-m4/patches/`. The McSPI patch toggles the hardware chip-select FORCE bit so an active-low SPIEN idles high, stays low for the transfer, and goes high again. Do not run `west init -l .` from the repo root.
 
    ```
    ./beagle-linux/scripts/build.sh zephyr
