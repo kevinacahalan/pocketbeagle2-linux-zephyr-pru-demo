@@ -1,11 +1,11 @@
 # Yocto
 
-Kas config and the `meta-pb2` layer live here. Build and write `pb2-demo-image` from the repo root. The commands are in the top-level README. `kas-container build` does not write the SD card.
+Kas config and the `meta-pb2` layer live here. Build `pb2-demo-image` from the repo root. The commands are in the top-level README. Podman and docker both work. Set `KAS_CONTAINER_ENGINE` to `podman` or `docker`. Unset, kas-container uses docker when that client is installed, and otherwise podman. `kas-container build` does not write the SD card.
 
 ```
 wget -O kas-container https://raw.githubusercontent.com/siemens/kas/5.5/kas-container
 chmod +x kas-container
-KAS_BUILD_DIR=yocto/build KAS_CONTAINER_ENGINE=podman ./kas-container build yocto/kas/pb2-poky.yml
+KAS_BUILD_DIR=yocto/build ./kas-container build yocto/kas/pb2-poky.yml
 ```
 
 - `kas/pb2-poky.yml` — includes TI's poky-wrynose kas file, machine `pocketbeagle2`, distro `poky`, target `pb2-demo-image`

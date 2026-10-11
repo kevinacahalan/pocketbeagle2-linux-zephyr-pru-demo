@@ -20,9 +20,54 @@ IMAGE_LINUX=pb2-linux-userspace
 IMAGE_PRU=pb2-pru-cgt
 IMAGE_ZEPHYR=pb2-zephyr-sdk
 
+# PB2_CONTAINER_ENGINE is podman or docker. Unset, use podman when it
+# is installed, otherwise docker. --security-opt label=disable is podman.
+select_engine() {
+	local engine=${PB2_CONTAINER_ENGINE:-}
+	if [[ -z $engine ]]; then
+		if command -v podman >/dev/null 2>&1; then
+			engine=podman
+		elif command -v docker >/dev/null 2>&1; then
+			engine=docker
+		else
+			echo "Install podman or docker." >&2
+			exit 1
+		fi
+	fi
+	case $engine in
+		podman|docker) ;;
+		*)
+			echo "PB2_CONTAINER_ENGINE must be podman or docker." >&2
+			exit 1
+			;;
+	esac
+	if ! command -v "$engine" >/dev/null 2>&1; then
+		echo "PB2_CONTAINER_ENGINE is $engine, and that program is not installed." >&2
+		exit 1
+	fi
+	PB2_CONTAINER_ENGINE=$engine
+}
+
+engine_build() {
+	if [[ $PB2_CONTAINER_ENGINE == podman ]]; then
+		podman build "$@"
+	else
+		docker build "$@"
+	fi
+}
+
+engine_run() {
+	if [[ $PB2_CONTAINER_ENGINE == podman ]]; then
+		podman run --rm --security-opt label=disable "$@"
+	else
+		docker run --rm "$@"
+	fi
+}
+
 build_image() {
 	local tag=$1 file=$2
-	podman build -t "$tag" -f "$file" "$(dirname "$file")"
+	select_engine
+	engine_build -t "$tag" -f "$file" "$(dirname "$file")"
 }
 
 fetch_erpc() {
@@ -59,7 +104,7 @@ build_linux() {
 	build_image "$IMAGE_LINUX" "$ROOT/containers/linux/Containerfile"
 	fetch_erpc
 	fetch_bbdt
-	podman run --rm --security-opt label=disable \
+	engine_run \
 		-v "$ROOT:/work" -w /work \
 		"$IMAGE_LINUX" \
 		bash -lc 'make -C linux-app clean all && make -C beagle-linux/overlays clean all'
@@ -68,7 +113,7 @@ build_linux() {
 build_pru() {
 	build_image "$IMAGE_PRU" "$ROOT/containers/pru-cgt/Containerfile"
 	fetch_pssp
-	podman run --rm --security-opt label=disable \
+	engine_run \
 		-v "$ROOT:/work" -w /work \
 		-e PRU_CGT=/opt/ti-cgt-pru \
 		"$IMAGE_PRU" \
@@ -92,7 +137,7 @@ build_kmod() {
 		mkdir -p "$headers"
 		rsync -a "$host:/usr/src/linux-headers-$krel/" "$headers/"
 	fi
-	podman run --rm --security-opt label=disable \
+	engine_run \
 		-v "$ROOT:/work" \
 		-v "$headers:/headers:ro" \
 		-w /work \
@@ -116,7 +161,7 @@ build_kmod() {
 build_zephyr() {
 	build_image "$IMAGE_ZEPHYR" "$ROOT/containers/zephyr/Containerfile"
 	fetch_erpc
-	podman run --rm --security-opt label=disable \
+	engine_run \
 		-v "$ROOT:/work" -w /work \
 		"$IMAGE_ZEPHYR" \
 		bash -lc 'set -euo pipefail

@@ -36,12 +36,12 @@ sudo PB2_PRU_KO=/usr/lib/pru_rproc.ko pb2-demo
 
 ### Yocto
 
-From the repo root, fetch kas-container and build `pb2-demo-image`. Use `docker` instead of `podman` in `KAS_CONTAINER_ENGINE` if that is the engine you have:
+From the repo root, fetch kas-container and build `pb2-demo-image`. Podman and docker both work. Set `KAS_CONTAINER_ENGINE` to `podman` or `docker`. Unset, kas-container uses docker when that client is installed, and otherwise podman.
 
 ```
 wget -O kas-container https://raw.githubusercontent.com/siemens/kas/5.5/kas-container
 chmod +x kas-container
-KAS_BUILD_DIR=yocto/build KAS_CONTAINER_ENGINE=podman ./kas-container build yocto/kas/pb2-poky.yml
+KAS_BUILD_DIR=yocto/build ./kas-container build yocto/kas/pb2-poky.yml
 ```
 
 The machine, kernel, and layers come from TI's `kas/poky-wrynose-config.yml`. The distro is poky. The target is `pb2-demo-image` (core-image-minimal plus this demo). The build compiles `pb2`, the Zephyr M4 ELF, and both PRU firmwares. It does not load or stop `78000000.r5f`. Downloads and shared state stay under `yocto/` and are not committed.
@@ -50,7 +50,7 @@ The machine, kernel, and layers come from TI's `kas/poky-wrynose-config.yml`. Th
 
 ## Build
 
-Have these in hand: this repo, git, podman, and a network path to GitHub, git.ti.com, and the Zephyr project. The script is `beagle-linux/scripts/build.sh`. It builds the Containerfiles under `containers/`, then compiles inside those images. Do not use a compiler installed on the host.
+Have these in hand: this repo, git, podman or docker, and a network path to GitHub, git.ti.com, and the Zephyr project. The script is `beagle-linux/scripts/build.sh`. It builds the Containerfiles under `containers/`, then compiles inside those images. Do not use a compiler installed on the host. Podman and docker both work. Set `PB2_CONTAINER_ENGINE` to `podman` or `docker`. Unset, the script uses podman when that is installed, and otherwise docker.
 
 From the repo root, this builds userspace, PRU firmware, and Zephyr, in that order:
 
@@ -94,7 +94,7 @@ The kernel module is `./beagle-linux/scripts/build.sh kmod` and needs the Debian
 
 ### Common problems
 
-- **No podman or docker.** `build.sh` calls `podman` by name. Install podman. A docker-only host fails that script until podman is installed. kas-container is the exception: set `KAS_CONTAINER_ENGINE` to `podman` or `docker`.
+- **No podman or docker.** Install one of them. `build.sh` runs under either: set `PB2_CONTAINER_ENGINE` to `podman` or `docker`. kas-container takes `KAS_CONTAINER_ENGINE` set to `podman` or `docker`.
 - **West checkout.** Do not run `west init -l .` from the repo root. That puts `.west/`, `zephyr/`, and `modules/` in the parent directory. The script uses `west init -l manifest`, which keeps the workspace at the repo root. If an old `.west/` points somewhere else, remove it and run the Zephyr build again. `west update` resets `zephyr/` to the pinned commit.
 - **Zephyr pin.** `manifest/west.yml` sets `revision` to a commit hash. The comment on that line says the hash is Zephyr `main` on 11 Oct 2026. The revision is not a branch name and not a tag. `west update` has to fetch that commit from `zephyrproject-rtos/zephyr`.
 - **Overlay headers.** `ti/k3-pinctrl.h` is not in this repository. `./beagle-linux/scripts/build.sh linux` clones BeagleBoard-DeviceTrees commit `550f7711a4696d5f5e92505289379b754e871313` into `third_party/BeagleBoard-DeviceTrees` and preprocesses the overlays with it. If that clone fails, the `.dtbo` files are not produced.
