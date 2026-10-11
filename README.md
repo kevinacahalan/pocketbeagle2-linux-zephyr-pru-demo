@@ -254,6 +254,10 @@ zephyr chunk bulk-hello
 Linux asked Zephyr to check chunk bulk-hello
 zephyr say hello from linux
 Linux asked Zephyr to say hello from linux
+Linux asked Zephyr to say "hello from linux", and Zephyr replied "zephyr: hello from linux"
+zephyr say "test"
+Linux asked Zephyr to say test
+Linux asked Zephyr to say "test", and Zephyr replied "zephyr: test"
 ```
 
 Zephyr:
@@ -286,14 +290,10 @@ Linux asked PRU0 to arm PRU1, and PRU0 wrote period 250000 count 20 for PRU1
 Zephyr asked PRU0 to arm PRU1, and PRU0 wrote period 100000 count 30 for PRU1
 ```
 
-PRU1, from the same run. `consumed` matches `seq` for the pair Zephyr published:
+PRU1, from the same run. The window prints a line when the X/Y seq changes. An unchanged seq is not printed again. `consumed` matches `seq` for the pair Zephyr published:
 
 ```
-pru1 xy magic=50423258 seq=2 x=41 y=83 consumed=2
-pru1 tick moved 49783 -> 50282
-pru1 tick=50780 done=30 applied_seq=4 period=100000 arm_seq=4
-pru1 xy magic=50423258 seq=2 x=41 y=83 consumed=2
-pru1 tick moved 50282 -> 50780
+pru1 xy seq=2 x=41 y=83 consumed=2
 ```
 
 ## Checked in and temporary

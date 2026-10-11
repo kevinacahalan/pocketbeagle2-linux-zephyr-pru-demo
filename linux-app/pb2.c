@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "pb2_erpc_linux.h"
@@ -35,6 +36,33 @@
  *   Sends the startup script, then reads commands such as xy and spi.
  */
 
+static int g_reply_fd = -1;
+
+static void unquote(char *s)
+{
+	char *w = s;
+
+	for (char *r = s; *r; r++) {
+		if (*r != '"') {
+			*w++ = *r;
+		}
+	}
+	*w = '\0';
+}
+
+static void print_help(void)
+{
+	printf("commands:\n");
+	printf("  zephyr say <text>\n");
+	printf("  zephyr arm <period> <count>\n");
+	printf("  zephyr chunk <text>\n");
+	printf("  zephyr xy <x> <y>\n");
+	printf("  pru0 <text>\n");
+	printf("  spi\n");
+	printf("  help\n");
+	fflush(stdout);
+}
+
 static int write_all(int fd, const void *buf, size_t len)
 {
 	const char *p = buf;
@@ -52,6 +80,23 @@ static int write_all(int fd, const void *buf, size_t len)
 		len -= (size_t)n;
 	}
 	return 0;
+}
+
+/* Print on this process, and hand the same line to the linux window. */
+static void note_line(const char *line)
+{
+	char buf[720];
+	int n;
+
+	printf("%s\n", line);
+	fflush(stdout);
+	if (g_reply_fd < 0) {
+		return;
+	}
+	n = snprintf(buf, sizeof(buf), "%s\n", line);
+	if (n > 0 && (size_t)n < sizeof(buf)) {
+		write_all(g_reply_fd, buf, (size_t)n);
+	}
 }
 
 static int peer_main(int argc, char **argv)
@@ -162,36 +207,38 @@ static void *map_phys(off_t addr, size_t len)
 static int watch_main(void)
 {
 	volatile struct pb2_arm *arm = map_phys(PB2_ARM_CPU, 4096);
-	uint32_t last_tick = 0;
-	int samples = 0;
+	volatile struct pb2_xy *xy;
+	uint32_t last_arm_seq = 0;
+	uint32_t last_xy_seq = 0;
+	int primed = 0;
 
 	if (!arm) {
 		return 1;
 	}
+	xy = (volatile struct pb2_xy *)((uintptr_t)arm + (PB2_XY_CPU - PB2_ARM_CPU));
 	printf("pru1 window ready, shared ram 0x%x\n", PB2_ARM_CPU);
 	fflush(stdout);
 	for (;;) {
-		uint32_t tick = arm->tick;
-		uint32_t done = arm->done;
-		uint32_t seq = arm->applied_seq;
-		uint32_t period = arm->applied_period;
 		uint32_t arm_seq = arm->seq;
+		uint32_t xy_seq = xy->seq;
 
-		printf("pru1 tick=%u done=%u applied_seq=%u period=%u arm_seq=%u\n",
-		       tick, done, seq, period, arm_seq);
-		{
-			volatile struct pb2_xy *xy =
-				(volatile struct pb2_xy *)((uintptr_t)arm +
-							   (PB2_XY_CPU - PB2_ARM_CPU));
-
-			printf("pru1 xy magic=%08x seq=%u x=%u y=%u consumed=%u\n",
-			       xy->magic, xy->seq, xy->x, xy->y, xy->consumed);
+		/* Sample the seq first. An unchanged seq is not news. */
+		if (!primed) {
+			last_arm_seq = arm_seq;
+			last_xy_seq = xy_seq;
+			primed = 1;
+		} else {
+			if (arm_seq != last_arm_seq) {
+				printf("pru1 arm seq=%u period=%u count=%u\n",
+				       arm_seq, arm->period_cycles, arm->periods);
+				last_arm_seq = arm_seq;
+			}
+			if (xy_seq != last_xy_seq) {
+				printf("pru1 xy seq=%u x=%u y=%u consumed=%u\n",
+				       xy_seq, xy->x, xy->y, xy->consumed);
+				last_xy_seq = xy_seq;
+			}
 		}
-		if (samples > 0 && tick != last_tick) {
-			printf("pru1 tick moved %u -> %u\n", last_tick, tick);
-		}
-		last_tick = tick;
-		samples++;
 		fflush(stdout);
 		usleep(200000);
 	}
@@ -245,15 +292,22 @@ static int erpc_line(const char *line)
 	char reply[200];
 
 	if (!strncmp(line, "say ", 4)) {
-		if (pb2_erpc_say(line + 4, reply, sizeof(reply))) {
-			printf("Linux asked Zephyr to say \"%s\", and Zephyr failed\n",
-			       line + 4);
-			fflush(stdout);
+		char text[512];
+		char shown[800];
+
+		snprintf(text, sizeof(text), "%s", line + 4);
+		unquote(text);
+		if (pb2_erpc_say(text, reply, sizeof(reply))) {
+			snprintf(shown, sizeof(shown),
+				 "Linux asked Zephyr to say \"%s\", and Zephyr failed",
+				 text);
+			note_line(shown);
 			return -1;
 		}
-		printf("Linux asked Zephyr to say \"%s\", and Zephyr replied \"%s\"\n",
-		       line + 4, reply);
-		fflush(stdout);
+		snprintf(shown, sizeof(shown),
+			 "Linux asked Zephyr to say \"%s\", and Zephyr replied \"%s\"",
+			 text, reply);
+		note_line(shown);
 		return 0;
 	}
 	if (!strncmp(line, "arm ", 4)) {
@@ -327,6 +381,16 @@ static int erpc_main(int argc, char **argv)
 		perror(fifopath);
 		return 1;
 	}
+	{
+		char reply_path[512];
+		size_t n = strlen(fifopath);
+
+		if (n >= 3 && !strcmp(fifopath + n - 3, ".in") &&
+		    snprintf(reply_path, sizeof(reply_path), "%.*s.reply",
+			     (int)(n - 3), fifopath) < (int)sizeof(reply_path)) {
+			g_reply_fd = open(reply_path, O_RDWR | O_NONBLOCK);
+		}
+	}
 	printf("zephyr window ready on %s (eRPC)\n", devpath);
 	fflush(stdout);
 
@@ -393,7 +457,37 @@ static int send_to(int fd, const char *who, const char *msg)
 	} else if (!strcmp(who, "zephyr") && !strncmp(msg, "chunk ", 6)) {
 		printf("Linux asked Zephyr to check chunk %s\n", msg + 6);
 	} else if (!strcmp(who, "zephyr") && !strncmp(msg, "say ", 4)) {
+		char reply[700];
+		struct pollfd pf;
+		size_t fill = 0;
+
 		printf("Linux asked Zephyr to say %s\n", msg + 4);
+		fflush(stdout);
+		if (g_reply_fd < 0) {
+			return 0;
+		}
+		pf.fd = g_reply_fd;
+		pf.events = POLLIN;
+		while (fill + 1 < sizeof(reply)) {
+			ssize_t got;
+			char c;
+
+			if (poll(&pf, 1, 3000) <= 0) {
+				break;
+			}
+			got = read(g_reply_fd, &c, 1);
+			if (got <= 0) {
+				break;
+			}
+			if (c == '\n') {
+				reply[fill] = '\0';
+				printf("%s\n", reply);
+				fflush(stdout);
+				return 0;
+			}
+			reply[fill++] = c;
+		}
+		return 0;
 	} else {
 		printf("Linux sent %s %s\n", who, msg);
 	}
@@ -470,6 +564,20 @@ static int linux_main(int argc, char **argv)
 		return 2;
 	}
 
+	{
+		char path[512];
+		int fd;
+
+		snprintf(path, sizeof(path), "%s/zephyr.reply", dir);
+		unlink(path);
+		if (mkfifo(path, 0666) && errno != EEXIST) {
+			perror(path);
+		}
+		fd = open(path, O_RDWR | O_NONBLOCK);
+		if (fd >= 0) {
+			g_reply_fd = fd;
+		}
+	}
 	zephyr = open_out(dir, "zephyr");
 	pru0 = open_out(dir, "pru0");
 	if (zephyr < 0 || pru0 < 0) {
@@ -497,7 +605,7 @@ static int linux_main(int argc, char **argv)
 		return 1;
 	}
 
-	printf("linux window ready. commands: zephyr say|arm|chunk|xy ... | pru0 <text> | spi\n");
+	printf("linux window ready. commands: zephyr say|arm|chunk|xy ... | pru0 <text> | spi | help\n");
 	fflush(stdout);
 
 	while (fgets(input, sizeof(input), stdin)) {
@@ -512,6 +620,10 @@ static int linux_main(int argc, char **argv)
 		}
 		if (!strcmp(input, "quit")) {
 			break;
+		}
+		if (!strcmp(input, "help")) {
+			print_help();
+			continue;
 		}
 		if (!strcmp(input, "spi") || !strncmp(input, "spi ", 4)) {
 			const char *dev = "/dev/spidev0.0";
@@ -530,17 +642,20 @@ static int linux_main(int argc, char **argv)
 		}
 		msg = strchr(input, ' ');
 		if (!msg) {
-			printf("use zephyr say|arm|chunk|xy ... or pru0 <text> or spi\n");
+			printf("use zephyr say|arm|chunk|xy ... or pru0 <text> or spi or help\n");
 			fflush(stdout);
 			continue;
 		}
 		*msg++ = '\0';
 		if (!strcmp(input, "zephyr")) {
+			if (!strncmp(msg, "say ", 4)) {
+				unquote(msg + 4);
+			}
 			send_to(zephyr, "zephyr", msg);
 		} else if (!strcmp(input, "pru0")) {
 			send_to(pru0, "pru0", msg);
 		} else {
-			printf("use zephyr say|arm|chunk|xy ... or pru0 <text> or spi\n");
+			printf("use zephyr say|arm|chunk|xy ... or pru0 <text> or spi or help\n");
 			fflush(stdout);
 		}
 	}
@@ -552,6 +667,10 @@ int main(int argc, char **argv)
 	if (argc < 2) {
 		fprintf(stderr, "usage: %s peer|erpc|watch|xy|spi|linux ...\n", argv[0]);
 		return 2;
+	}
+	if (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")) {
+		print_help();
+		return 0;
 	}
 	if (!strcmp(argv[1], "peer")) {
 		return peer_main(argc, argv);
