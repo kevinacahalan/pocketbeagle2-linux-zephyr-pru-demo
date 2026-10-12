@@ -2,5 +2,5 @@
 # U-Boot extlinux on the boot partition uses root=/dev/mmcblk1p3
 # and resume=/dev/mmcblk1p2.
 part --source bootimg-partition --fstype=vfat --label boot --active --align 1024 --use-uuid --fixed-size 256M
-part --fstype=swap --label swap --align 1024 --use-uuid --fixed-size 1024M
+part --fstype=swap --label swap --align 1024 --use-uuid --size 1024
 part / --source rootfs --fstype=ext4 --label root --align 1024 --use-uuid
