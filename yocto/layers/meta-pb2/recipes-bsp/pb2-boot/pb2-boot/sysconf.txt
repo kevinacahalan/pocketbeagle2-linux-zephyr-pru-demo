@@ -1,0 +1,9 @@
+# This file is evaluated at first boot.
+# Comments are ignored. Active lines are key=value.
+# The uid 1000 account already exists. Set user_name to rename it.
+# Set user_password to give that account a password. Leave both
+# commented to keep the account as shipped.
+#
+# user_name=
+# user_password=
+# root_password=

@@ -46,7 +46,7 @@ KAS_BUILD_DIR=yocto/build ./kas-container build yocto/kas/pb2-poky.yml
 
 The machine, kernel, and layers come from TI's `kas/poky-wrynose-config.yml`. The distro is poky. The target is `pb2-demo-image` (core-image-minimal plus this demo). The build compiles `pb2`, the Zephyr M4 ELF, and both PRU firmwares. It does not load or stop `78000000.r5f`. Downloads and shared state stay under `yocto/` and are not committed.
 
-`pb2-demo-image` already contains `/usr/bin/pb2` and `/usr/bin/pb2-demo`. `pb2-demo` is on `PATH`. The serial console is `ttyS2` at 115200, and that is how you run it, because the image sets no account. The M4 ELF is `/lib/firmware/am62-mcu-m4f0_0-fw`. The PRU firmwares are `/lib/firmware/am62x-pru0-fw` and `/lib/firmware/am62x-pru1-fw`. Nothing starts those cores at boot. The Yocto image ships the three overlay blobs under `/lib/firmware` and does not put them on the boot list, so SPI0 and P1.20 stay at the board tree's mux. `pb2-demo` does not stop or reload `78000000.r5f`.
+`pb2-demo-image` uses systemd. It already contains `/usr/bin/pb2` and `/usr/bin/pb2-demo`. `pb2-demo` is on `PATH`. The serial console is `ttyS2` at 115200. The account is the uid 1000 account the PocketBeagle 2 Debian IoT image ships. No password is stored in this image. Before the first boot, set `user_password` in `sysconf.txt` on the FAT boot partition if you want one. The same home also holds the Debian build-tree layout: `linux-app/pb2`, `beagle-linux/scripts/pb2-demo`, `pru/build/am62x-pru0-fw`, `pru/build/am62x-pru1-fw`, and `build/zephyr/pb2_m4.elf`. The M4 ELF is `/lib/firmware/am62-mcu-m4f0_0-fw`. The PRU firmwares are `/lib/firmware/am62x-pru0-fw` and `/lib/firmware/am62x-pru1-fw`. U-Boot loads that M4 ELF when it is present. The default extlinux label selects the three overlay blobs, so SPI0 and P1.20 take the demo mux on the next boot. USB comes up as the Beagle NCM gadget. `pb2-demo` does not stop or reload `78000000.r5f`.
 
 ## Build
 
@@ -213,13 +213,13 @@ It is not a Linux SPI0 pin (P2.29, P2.25, P2.27, P2.31) and not a Zephyr SPI2 pi
 
 Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtso`. `./beagle-linux/scripts/build.sh linux` builds the blob next to the SPI overlay. Copy it to `/boot/firmware/overlays/`. The Debian `fdtoverlays` line names this blob with the SPI blob and the leftover-gpio blob. The PRUSS node takes that pin group. The pad does not change until the next boot.
 
-Header pins that Linux, Zephyr, and the PRUs do not already use are muxed as input GPIOs by `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtso`. Each of those pins uses `AM62X_IOPAD()` (the two MCU partners use `AM62X_MCU_IOPAD()`) and is commented as unused and muxed as Linux GPIO. The same `build.sh linux` step writes `k3-am62-pocketbeagle2-leftover-gpio.dtbo`. Copy the blob to `/boot/firmware/overlays/`. The Debian `fdtoverlays` line names this blob with the other two. The Yocto image ships the blob and does not put it on the boot list. The full pin list is `PINMUX.md`. None of these pins is an LED.
+Header pins that Linux, Zephyr, and the PRUs do not already use are muxed as input GPIOs by `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtso`. Each of those pins uses `AM62X_IOPAD()` (the two MCU partners use `AM62X_MCU_IOPAD()`) and is commented as unused and muxed as Linux GPIO. The same `build.sh linux` step writes `k3-am62-pocketbeagle2-leftover-gpio.dtbo`. Copy the blob to `/boot/firmware/overlays/`. The Debian `fdtoverlays` line names this blob with the other two. The Yocto image selects this blob on the default extlinux label with the other two. The full pin list is `PINMUX.md`. None of these pins is an LED.
 
 From the linux window the commands are `pru0 xy <x> <y>` and `zephyr xy <x> <y>`. PRU0's RPMsg reply names who asked and what it wrote for PRU1. `pb2 xy` prints the shared record, including `consumed`.
 
 ## Run
 
-`pb2-demo-image` installs the runner on `PATH` as `/usr/bin/pb2-demo`. Nothing starts the cores at boot. Run it yourself:
+`pb2-demo-image` installs the runner on `PATH` as `/usr/bin/pb2-demo`. U-Boot loads the M4 ELF from `/lib/firmware` when it is present. Run the demo yourself:
 
 ```
 pb2-demo

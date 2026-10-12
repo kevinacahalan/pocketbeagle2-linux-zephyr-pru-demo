@@ -29,7 +29,7 @@ Debian pieces for the BeagleBoard image: overlays, the patched `pru_rproc` modul
 
 ## Yocto — `yocto/`
 
-`yocto/kas/pb2-poky.yml` is the kas-container config for `pb2-demo-image`, a minimum Poky image for machine `pocketbeagle2`. `yocto/layers/meta-pb2` compiles `linux-app/`, the Zephyr M4 firmware, and both PRU firmwares, and installs `pb2-demo` on `PATH`. The image does not start those cores at boot. `yocto/sources/`, `yocto/downloads/`, and `yocto/build/` are generated and not committed. Building the image does not write a card. The Debian path is separate and lives under `beagle-linux/`.
+`yocto/kas/pb2-poky.yml` is the kas-container config for `pb2-demo-image`, a systemd Poky image for machine `pocketbeagle2`. `yocto/layers/meta-pb2` compiles `linux-app/`, the Zephyr M4 firmware, and both PRU firmwares, and installs `pb2-demo` on `PATH`. The default extlinux label selects the demo overlays. U-Boot loads the M4 ELF from `/lib/firmware` when it is present. `yocto/sources/`, `yocto/downloads/`, and `yocto/build/` are generated and not committed. Building the image does not write a card. The Debian path is separate and lives under `beagle-linux/`.
 
 ## Containers — `containers/`
 

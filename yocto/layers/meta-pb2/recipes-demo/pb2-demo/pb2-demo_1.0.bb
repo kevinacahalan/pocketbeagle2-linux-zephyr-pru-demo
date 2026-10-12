@@ -9,6 +9,8 @@ LIC_FILES_CHKSUM = "file://third_party/erpc/LICENSE;md5=b66f32a90f9577a5a3255c21
 
 DEPENDS = "dtc-native"
 
+inherit deploy
+
 FILESEXTRAPATHS:prepend := "${@os.path.abspath(os.path.join(os.path.dirname(d.getVar('FILE')), '..', '..', '..', '..', '..'))}/:"
 
 SRC_URI = " \
@@ -57,19 +59,36 @@ do_compile () {
 do_install () {
     install -d ${D}${bindir}
     install -d ${D}${nonarch_base_libdir}/firmware
+    install -d ${D}/boot/firmware/overlays
     install -m 0755 ${S}/linux-app/pb2 ${D}${bindir}/pb2
     install -m 0755 ${S}/beagle-linux/scripts/pb2-demo ${D}${bindir}/pb2-demo
-    # Overlays are built here and installed as files. They are not added
-    # to the boot fdtoverlays list.
-    install -m 0644 ${S}/beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo \
-        ${D}${nonarch_base_libdir}/firmware/
-    install -m 0644 ${S}/beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtbo \
-        ${D}${nonarch_base_libdir}/firmware/
-    install -m 0644 ${S}/beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo \
-        ${D}${nonarch_base_libdir}/firmware/
+    # Selected from extlinux.conf. Copies also live under /lib/firmware.
+    for o in \
+        k3-am62-pocketbeagle2-spi0-hello.dtbo \
+        k3-am62-pocketbeagle2-pru1-xy.dtbo \
+        k3-am62-pocketbeagle2-leftover-gpio.dtbo
+    do
+        install -m 0644 ${S}/beagle-linux/overlays/$o ${D}${nonarch_base_libdir}/firmware/
+        install -m 0644 ${S}/beagle-linux/overlays/$o ${D}/boot/firmware/overlays/
+    done
 }
 
-FILES:${PN} += "${nonarch_base_libdir}/firmware/*.dtbo"
+do_deploy() {
+    install -d ${DEPLOYDIR}
+    for o in \
+        k3-am62-pocketbeagle2-spi0-hello.dtbo \
+        k3-am62-pocketbeagle2-pru1-xy.dtbo \
+        k3-am62-pocketbeagle2-leftover-gpio.dtbo
+    do
+        install -m 0644 ${S}/beagle-linux/overlays/$o ${DEPLOYDIR}/
+    done
+}
+addtask deploy after do_compile before do_build
+
+FILES:${PN} += " \
+    ${nonarch_base_libdir}/firmware/*.dtbo \
+    /boot/firmware/overlays/*.dtbo \
+"
 
 # The runner is a shell script. It is not a boot service.
 RDEPENDS:${PN} += "bash tmux libcap"

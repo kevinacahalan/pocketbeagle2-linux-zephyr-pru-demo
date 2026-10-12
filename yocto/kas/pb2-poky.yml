@@ -61,6 +61,8 @@ local_conf_header:
   pb2-poky: |
     DISTRO = "poky"
     MACHINE = "pocketbeagle2"
+    # Beagle images boot with systemd. This selects usrmerge as well.
+    INIT_MANAGER = "systemd"
     # The TI template commits buildhistory. Skip that so the build does
     # not need a git identity.
     BUILDHISTORY_COMMIT = "0"

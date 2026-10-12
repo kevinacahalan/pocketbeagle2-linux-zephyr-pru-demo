@@ -59,6 +59,13 @@ as_root() {
 	fi
 }
 
+# One write. BusyBox tee stores sysfs a byte at a time, and remoteproc
+# rejects a firmware name whose first byte is a newline.
+write_sysfs() {
+	local value=$1 dest=$2
+	as_root sh -c 'printf "%s\n" "$1" > "$2"' _ "$value" "$dest"
+}
+
 # Look up a demo core. Never returns the device-manager R5.
 rproc_by_name() {
 	local want=$1 d name
@@ -96,7 +103,7 @@ stop_core() {
 	if [[ $state == offline ]]; then
 		return 0
 	fi
-	echo stop | as_root tee "$rproc/state" >/dev/null || true
+	write_sysfs stop "$rproc/state" || true
 	for i in $(seq 1 25); do
 		state=$(cat "$rproc/state")
 		if [[ $state == offline ]]; then
@@ -134,8 +141,8 @@ load_fw() {
 	if [[ $(readlink -f "$src") != $(readlink -f "$dest") ]]; then
 		as_root cp "$src" "$dest"
 	fi
-	echo "$fwname" | as_root tee "$rproc/firmware" >/dev/null
-	echo start | as_root tee "$rproc/state" >/dev/null
+	write_sysfs "$fwname" "$rproc/firmware"
+	write_sysfs start "$rproc/state"
 }
 
 find_rpmsg() {

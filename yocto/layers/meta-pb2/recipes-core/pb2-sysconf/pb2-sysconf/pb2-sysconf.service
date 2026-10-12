@@ -1,0 +1,12 @@
+[Unit]
+Description=Apply Beagle sysconf account settings
+Requires=boot-firmware.mount
+After=boot-firmware.mount
+ConditionPathExists=/boot/firmware/sysconf.txt
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/pb2-sysconf
+
+[Install]
+WantedBy=basic.target

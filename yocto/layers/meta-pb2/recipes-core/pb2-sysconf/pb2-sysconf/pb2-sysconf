@@ -1,0 +1,49 @@
+#!/bin/sh
+# Apply account keys from the boot-partition sysconf.txt.
+# Commented lines are ignored. Nothing here sets a password of its own.
+set -eu
+
+conf=/boot/firmware/sysconf.txt
+[ -f "$conf" ] || exit 0
+
+get_key() {
+	awk -F= -v key="$1" '
+		/^[[:space:]]*#/ { next }
+		{
+			k=$1
+			gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
+			if (k == key) {
+				sub(/^[^=]*=/, "")
+				gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+				print
+			}
+		}
+	' "$conf"
+}
+
+user=$(getent passwd 1000 | cut -d: -f1 || true)
+name=$(get_key user_name || true)
+pass=$(get_key user_password || true)
+rootpass=$(get_key root_password || true)
+
+if [ -n "$pass" ] && [ -n "$user" ]; then
+	printf '%s:%s\n' "$user" "$pass" | chpasswd
+fi
+if [ -n "$rootpass" ]; then
+	printf 'root:%s\n' "$rootpass" | chpasswd
+fi
+if [ -n "$name" ] && [ -n "$user" ] && [ "$name" != "$user" ]; then
+	usermod --login "$name" --home "/home/$name" --move-home "$user"
+	groupmod --new-name "$name" "$user" || true
+fi
+
+# Drop applied secrets from the boot file. Leave the commented template.
+if [ -n "$pass" ] || [ -n "$rootpass" ]; then
+	awk '
+		/^[[:space:]]*#/ { print; next }
+		/^[[:space:]]*user_password[[:space:]]*=/ { next }
+		/^[[:space:]]*root_password[[:space:]]*=/ { next }
+		{ print }
+	' "$conf" > "$conf.new"
+	mv "$conf.new" "$conf"
+fi
