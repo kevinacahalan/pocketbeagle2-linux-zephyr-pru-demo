@@ -137,7 +137,7 @@ That is the one command. It fetches BeagleBoard-DeviceTrees so `ti/k3-pinctrl.h`
 fdtoverlays /overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo /overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo
 ```
 
-The pad change waits until the next boot. The Yocto image installs the blob under `/lib/firmware` and does not add it to the boot list. `78000000.r5f` is not stopped or reloaded.
+The pad change waits until the next boot. The Yocto image installs the blob under `/lib/firmware` and does not add it to the boot list.
 
 ## Left on the board
 

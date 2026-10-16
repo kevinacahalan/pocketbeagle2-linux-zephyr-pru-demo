@@ -1,5 +1,5 @@
 SUMMARY = "PocketBeagle 2 demo image with Beagle bring-up"
-DESCRIPTION = "systemd image for PocketBeagle 2. extlinux selects the demo overlays, the Beagle USB gadgets enumerate, and /root holds pb2, pb2-demo, and the firmwares. Login is the default root account. pb2-demo is on PATH. Does not load or stop the device-manager R5."
+DESCRIPTION = "systemd image for PocketBeagle 2. extlinux selects the demo overlays, the Beagle USB gadgets enumerate, and /root holds pb2, pb2-demo, and the firmwares. Login is the default root account. pb2-demo is on PATH."
 
 require recipes-core/images/core-image-minimal.bb
 

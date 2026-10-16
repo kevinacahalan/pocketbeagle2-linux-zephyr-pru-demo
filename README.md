@@ -1,6 +1,6 @@
 # PocketBeagle 2: Linux, Zephyr, and PRU
 
-Linux on the A53s calls Zephyr functions over eRPC on the existing RPMsg channel, and commands PRU0 over RPMsg. PRU0 is the transfer core: it arms PRU1 in PRU shared RAM, and it also writes a 32-bit X and a 32-bit Y there. PRU1 does not use RPMsg. It runs a cycle-counted loop, samples the arm block once per period, and when the X/Y sequence changes it shifts that pair out on a header pin. Linux hands Zephyr bulk chunks through a separate DDR region (`zephyr-m4/include/pb2_shm.h`). The device-manager R5 is not loaded or stopped.
+Linux on the A53s calls Zephyr functions over eRPC on the existing RPMsg channel, and commands PRU0 over RPMsg. PRU0 is the transfer core: it arms PRU1 in PRU shared RAM, and it also writes a 32-bit X and a 32-bit Y there. PRU1 does not use RPMsg. It runs a cycle-counted loop, samples the arm block once per period, and when the X/Y sequence changes it shifts that pair out on a header pin. Linux hands Zephyr bulk chunks through a separate DDR region (`zephyr-m4/include/pb2_shm.h`).
 
 pb2 commands Zephyr and PRU0, Zephyr passes arm and X/Y in the mailbox, and PRU0 writes the shared RAM window PRU1 samples.
 
@@ -18,7 +18,7 @@ flowchart LR
   pru1 -->|"Linux reads shared RAM"| pb2
 ```
 
-Host compiles run in containers. `LAYOUT.md` is the directory map. `78000000.r5f` is not loaded or stopped.
+Host compiles run in containers. `LAYOUT.md` is the directory map.
 
 ## Getting started
 
@@ -42,13 +42,13 @@ The Debian image still needs this demo installed. Put `linux-app/pb2` and `beagl
 fdtoverlays /overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo /overlays/k3-am62-pocketbeagle2-pru1-xy.dtbo /overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo
 ```
 
-The pads do not change until the next boot. Install `tmux` and `libcap2-bin` if `pb2-demo --tmux` or `setcap` is missing. The image requests DHCP on `usb0`. Start the demo with the module you installed:
+The pads do not change until the next boot. Install `tmux` if `pb2-demo --tmux` is missing. The image requests DHCP on `usb0`. Start the demo with the module you installed:
 
 ```
 sudo PB2_PRU_KO=/usr/lib/pru_rproc.ko pb2-demo
 ```
 
-`pb2-demo` stops and starts the M4, PRU0, and PRU1. It does not stop or reload `78000000.r5f`.
+`pb2-demo` stops and starts the M4, PRU0, and PRU1.
 
 ### Yocto
 
@@ -60,9 +60,9 @@ chmod +x kas-container
 KAS_BUILD_DIR=yocto/build ./kas-container build yocto/kas/pb2-poky.yml
 ```
 
-The machine, kernel, and layers come from TI's `kas/poky-wrynose-config.yml`. The distro is poky. The target is `pb2-demo-image` (core-image-minimal plus this demo). The build compiles `pb2`, the Zephyr M4 ELF, and both PRU firmwares. It does not load or stop `78000000.r5f`. Downloads and shared state stay under `yocto/` and are not committed.
+The machine, kernel, and layers come from TI's `kas/poky-wrynose-config.yml`. The distro is poky. The target is `pb2-demo-image` (core-image-minimal plus this demo). The build compiles `pb2`, the Zephyr M4 ELF, and both PRU firmwares. Downloads and shared state stay under `yocto/` and are not committed.
 
-`pb2-demo-image` uses systemd. It already contains `/usr/bin/pb2` and `/usr/bin/pb2-demo`. `pb2-demo` is on `PATH`. The serial console is `ttyS2` at 115200. Login is root, home `/root`. The image does not add another account and does not set a password. `/root` holds `README.md`, `pb2`, `pb2-demo`, `pb2_m4.elf`, `am62x-pru0-fw`, and `am62x-pru1-fw`. From that directory, `./pb2-demo` starts the demo. The M4 ELF is `/lib/firmware/am62-mcu-m4f0_0-fw`. The PRU firmwares are `/lib/firmware/am62x-pru0-fw` and `/lib/firmware/am62x-pru1-fw`. U-Boot loads that M4 ELF when it is present. The default extlinux label selects the three overlay blobs, so SPI0 and P1.20 take the demo mux on the next boot. USB comes up as the Beagle NCM gadget on `usb0` and the ACM serial gadget (`serial-getty@ttyGS0.service`). `pb2-demo` does not stop or reload `78000000.r5f`. If the kernel already started the M4, `pb2-demo` leaves it running.
+`pb2-demo-image` uses systemd. It already contains `/usr/bin/pb2` and `/usr/bin/pb2-demo`. `pb2-demo` is on `PATH`. The serial console is `ttyS2` at 115200. Login is root, home `/root`. The image does not add another account and does not set a password. `/root` holds `README.md`, `pb2`, `pb2-demo`, `pb2_m4.elf`, `am62x-pru0-fw`, and `am62x-pru1-fw`. From that directory, `./pb2-demo` starts the demo. The M4 ELF is `/lib/firmware/am62-mcu-m4f0_0-fw`. The PRU firmwares are `/lib/firmware/am62x-pru0-fw` and `/lib/firmware/am62x-pru1-fw`. U-Boot loads that M4 ELF when it is present. The default extlinux label selects the three overlay blobs, so SPI0 and P1.20 take the demo mux on the next boot. USB comes up as the Beagle NCM gadget on `usb0` and the ACM serial gadget (`serial-getty@ttyGS0.service`).
 
 ## Build
 
@@ -119,7 +119,7 @@ The kernel module is `./beagle-linux/scripts/build.sh kmod` and needs the Debian
 
 `zephyr-m4/m4/boards/pocketbeagle_2_am6254_m4.overlay` is a Zephyr devicetree overlay, not a Linux overlay for the Debian kernel. `west build` picks it up by board name (`pocketbeagle_2/am6254/m4`) and compiles it into `pb2_m4.elf`. It shrinks the M4 DDR region so two ranges stay outside the Zephyr image: a 64 KiB bulk buffer at `0x9d9ef000` and the 4 KiB mailbox at `0x9d9ff000`. There is no loadable ELF section at either address.
 
-On the Debian image the overlay is not applied with `dtbo`, configfs, or a reboot. `pb2-demo` copies the ELF to `/lib/firmware/am62-mcu-m4f0_0-fw` and starts remoteproc `5000000.m4fss`. That boot is what brings the overlay's memory map up. The script does not stop or reload `78000000.r5f`. It does not run at boot.
+On the Debian image the overlay is not applied with `dtbo`, configfs, or a reboot. `pb2-demo` copies the ELF to `/lib/firmware/am62-mcu-m4f0_0-fw` and starts remoteproc `5000000.m4fss`. That boot is what brings the overlay's memory map up. The script does not run at boot.
 
 The same overlay also muxes main SPI2 and, once that ELF is running, `main()` clocks the five bytes `hello` at 1 MHz, mode 0, 8-bit MSB. D1 is MOSI and D0 is MISO. That pinmux is inside `pb2_m4.elf`. It is not a Debian dtbo. The M4 console UART is unwired, so the result is also written to the DDR mailbox: `spi hello ok` after the transfer returns, or `spi hello not ready` / `spi hello fail <errno>` if it does not.
 
@@ -241,7 +241,7 @@ From the linux window the commands are `pru0 xy <x> <y>` and `zephyr xy <x> <y>`
 pb2-demo
 ```
 
-That starts PRU0 and PRU1. If the M4 is already running, it leaves it. Otherwise it starts the M4. Output is merged on this console. Each line is prefixed `[Linux]`, `[M4]`, `[PRU0]`, or `[PRU1]`. It never stops, reloads, or replaces `78000000.r5f`.
+That starts PRU0, PRU1, and the M4. Output is merged on this console. Each line is prefixed `[Linux]`, `[M4]`, `[PRU0]`, or `[PRU1]`.
 
 ```
 pb2-demo --tmux

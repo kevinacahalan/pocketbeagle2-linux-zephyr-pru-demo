@@ -1,13 +1,12 @@
 #!/bin/bash
 # Run the PocketBeagle 2 demo on the board. This does not start at boot.
 #
-#   pb2-demo                 start PRU0 and PRU1, leave a running M4, then one console
+#   pb2-demo                 start PRU0, PRU1, and the M4, then one console
 #   pb2-demo --tmux          same start, in tmux session pb2 (four windows)
 #   pb2-demo --attach        do not stop or start any core
 #   pb2-demo --attach --tmux attach to session pb2, or open it without a restart
 #
 # Every merged line is prefixed [Linux], [M4], [PRU0], or [PRU1].
-# 78000000.r5f is never stopped, reloaded, or replaced.
 
 set -euo pipefail
 
@@ -22,9 +21,8 @@ usage() {
 	cat <<'EOF'
 usage: pb2-demo [--tmux] [--attach]
 
-  (default)  Start PRU0 and PRU1. If the M4 is already running, leave
-             it. Otherwise start it. Then print one console. Each line
-             is prefixed [Linux], [M4], [PRU0], or [PRU1].
+  (default)  Start PRU0, PRU1, and the M4. Then print one console.
+             Each line is prefixed [Linux], [M4], [PRU0], or [PRU1].
   --tmux     Same start, in tmux session pb2. Windows: linux, zephyr,
              pru0, pru1.
   --attach   Do not stop or start any core. Connect to what is already
@@ -66,11 +64,9 @@ write_sysfs() {
 	as_root sh -c 'printf "%s\n" "$1" > "$2"' _ "$value" "$dest"
 }
 
-# Look up a demo core. Never returns the device-manager R5.
 rproc_by_name() {
 	local want=$1 d name
 	if [[ $want == "$R5" ]]; then
-		echo "refusing to use $want" >&2
 		return 1
 	fi
 	for d in /sys/class/remoteproc/remoteproc*; do
@@ -135,14 +131,10 @@ load_fw() {
 		echo "missing $src" >&2
 		exit 1
 	fi
-	# The kernel (or U-Boot) may already have started the M4. Stopping
-	# that core times out in k3_rproc_stop and the write returns EBUSY.
-	# Leave it running and do not write state again.
 	if [[ $name == "$M4_NAME" ]]; then
 		rproc=$(rproc_by_name "$name")
 		state=$(cat "$rproc/state")
 		if [[ $state == running ]]; then
-			echo "$name is already running. Leaving it."
 			return 0
 		fi
 	fi
@@ -285,12 +277,6 @@ done
 if [[ -z $ZEPHYR_DEV || -z $PRU0_DEV ]]; then
 	echo "RPMsg devices did not show up" >&2
 	echo "m4=${ZEPHYR_DEV:-missing} pru0=${PRU0_DEV:-missing}" >&2
-	if [[ -z $ZEPHYR_DEV ]]; then
-		state=$(cat "$(rproc_by_name "$M4_NAME")/state" 2>/dev/null || true)
-		if [[ $state == running ]]; then
-			echo "$M4_NAME is running but its RPMsg channel is not there. Not stopping it." >&2
-		fi
-	fi
 	exit 1
 fi
 
@@ -301,8 +287,6 @@ if [[ -z $SETCAP && -x /usr/sbin/setcap ]]; then
 fi
 if [[ -n $SETCAP ]]; then
 	as_root "$SETCAP" cap_sys_rawio+ep "$BIN"
-else
-	echo "setcap is not installed; /dev/mem access may fail" >&2
 fi
 as_root chmod 0660 /dev/mem
 
