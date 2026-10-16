@@ -168,17 +168,17 @@ build_zephyr() {
 			export ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1
 			git config --global --add safe.directory "*"
 			if [[ ! -d .west ]]; then
-				west init -l zephyr-m4
+				west init -l zephyr
 			fi
 			# west update checks out the manifest revision and drops local edits.
-			# apply-patches.sh reapplies zephyr-m4/patches/ when that directory
+			# apply-patches.sh reapplies zephyr/patches/ when that directory
 			# has any.
-			if [[ -d zephyr/.git || -f zephyr/.git ]]; then
-				git -C zephyr checkout -- drivers/spi/spi_omap_mcspi.c || true
+			if [[ -d zephyr/upstream/.git || -f zephyr/upstream/.git ]]; then
+				git -C zephyr/upstream checkout -- drivers/spi/spi_omap_mcspi.c || true
 			fi
 			west update
-			zephyr-m4/scripts/apply-patches.sh
-			west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4 -p always'
+			zephyr/scripts/apply-patches.sh
+			west build -b pocketbeagle_2/am6254/m4 zephyr/m4 -p always'
 }
 
 case ${1:-all} in

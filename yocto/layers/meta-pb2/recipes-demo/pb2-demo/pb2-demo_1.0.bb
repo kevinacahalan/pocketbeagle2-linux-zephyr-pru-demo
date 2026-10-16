@@ -23,8 +23,8 @@ SRC_URI = " \
     file://beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtso;subdir=src \
     file://beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtso;subdir=src \
     file://beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtso;subdir=src \
-    file://zephyr-m4/include/pb2_shm.h;subdir=src \
-    file://zephyr-m4/erpc/shim;subdir=src \
+    file://zephyr/include/pb2_shm.h;subdir=src \
+    file://zephyr/erpc/shim;subdir=src \
     file://beagle-linux/scripts/pb2-demo;subdir=src \
     git://github.com/EmbeddedRPC/erpc.git;protocol=https;nobranch=1;destsuffix=src/third_party/erpc;name=erpc \
     git://github.com/beagleboard/BeagleBoard-DeviceTrees.git;protocol=https;nobranch=1;destsuffix=src/third_party/BeagleBoard-DeviceTrees;name=bbdt \

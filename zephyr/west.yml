@@ -7,4 +7,5 @@ manifest:
     - name: zephyr
       remote: zephyrproject-rtos
       revision: e35b686be50a224e381fd35174be9fcb1a4ddd37  # this hash is Zephyr main on 11 Oct 2026
+      path: zephyr/upstream
       import: true

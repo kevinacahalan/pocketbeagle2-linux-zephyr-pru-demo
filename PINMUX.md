@@ -40,7 +40,7 @@ P2.29A and P2.31A are shorted to the clock and chip-select pins. They are not dr
 
 ## Zephyr SPI2
 
-Core: Zephyr on the M4. The pinmux is inside `pb2_m4.elf`, from `zephyr-m4/m4/boards/pocketbeagle_2_am6254_m4.overlay`. It is not a Debian dtbo. Mode 1 is the SPI2 function. Controller: main SPI2 at `0x20120000`.
+Core: Zephyr on the M4. The pinmux is inside `pb2_m4.elf`, from `zephyr/m4/boards/pocketbeagle_2_am6254_m4.overlay`. It is not a Debian dtbo. Mode 1 is the SPI2 function. Controller: main SPI2 at `0x20120000`.
 
 | Signal | Header | Ball | Pad offset | Mux |
 | --- | --- | --- | --- | --- |

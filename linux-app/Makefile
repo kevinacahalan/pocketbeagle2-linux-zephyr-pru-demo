@@ -5,8 +5,8 @@ CXXFLAGS = -O2 -Wall -Wextra -std=c++17 -fno-exceptions -fno-rtti
 
 ROOT := $(abspath ..)
 ERPC := $(ROOT)/third_party/erpc
-SHIM := $(ROOT)/zephyr-m4/erpc/shim
-INCLUDES = -I. -I$(SHIM) -I$(ROOT)/zephyr-m4/include \
+SHIM := $(ROOT)/zephyr/erpc/shim
+INCLUDES = -I. -I$(SHIM) -I$(ROOT)/zephyr/include \
 	-I$(ERPC)/erpc_c/infra -I$(ERPC)/erpc_c/port \
 	-I$(ERPC)/erpc_c/setup -I$(ERPC)/erpc_c/transports
 
@@ -33,7 +33,7 @@ pb2: pb2.o $(ERPC_SRCS)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDES) -o $@ pb2.o $(ERPC_SRCS)
 
 pb2.o: pb2.c pb2_erpc_linux.h
-	$(CC) $(CFLAGS) -I. -I$(ROOT)/zephyr-m4/include -c -o $@ pb2.c
+	$(CC) $(CFLAGS) -I. -I$(ROOT)/zephyr/include -c -o $@ pb2.c
 
 clean:
 	rm -f pb2 pb2.o
