@@ -2,6 +2,22 @@
 
 Linux on the A53s calls Zephyr functions over eRPC on the existing RPMsg channel, and commands PRU0 over RPMsg. PRU0 is the transfer core: it arms PRU1 in PRU shared RAM, and it also writes a 32-bit X and a 32-bit Y there. PRU1 does not use RPMsg. It runs a cycle-counted loop, samples the arm block once per period, and when the X/Y sequence changes it shifts that pair out on a header pin. Linux hands Zephyr bulk chunks through a separate DDR region (`zephyr-m4/include/pb2_shm.h`). The device-manager R5 is not loaded or stopped.
 
+pb2 commands Zephyr and PRU0, Zephyr passes arm and X/Y in the mailbox, and PRU0 writes the shared RAM window PRU1 samples.
+
+```mermaid
+flowchart LR
+  pb2["Linux pb2<br/>A53"]
+  m4["Zephyr<br/>M4"]
+  pru0["PRU0"]
+  pru1["PRU1"]
+  pb2 <-->|"RPMsg eRPC"| m4
+  pb2 -->|"DDR chunk"| m4
+  pb2 <-->|"RPMsg text"| pru0
+  m4 -->|"DDR mailbox"| pru0
+  pru0 -->|"shared RAM"| pru1
+  pru1 -->|"Linux reads shared RAM"| pb2
+```
+
 Host compiles run in containers. `LAYOUT.md` is the directory map. `78000000.r5f` is not loaded or stopped.
 
 ## Getting started
