@@ -1,6 +1,6 @@
 # Checked in
 #   README.md, LAYOUT.md, .gitignore
-#   manifest/                         west manifest (workspace topdir is the repo root)
+#   zephyr-m4/west.yml                west manifest (workspace topdir is the repo root)
 #   linux-app/                        Linux userspace program (pb2)
 #   beagle-linux/                     Debian overlays, patched pru_rproc, scripts
 #   containers/                       Linux, TI CGT, and Zephyr SDK images
@@ -10,7 +10,7 @@
 #
 # Temporary. These stay on disk and stay untracked.
 
-# West workspace created by `west init -l manifest` from the repo root.
+# West workspace created by `west init -l zephyr-m4` from the repo root.
 .west/
 /zephyr/
 modules/
