@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run the PocketBeagle 2 demo on the board. This does not start at boot.
 #
-#   pb2-demo                 stop M4, PRU0, and PRU1, then one merged console
+#   pb2-demo                 start PRU0 and PRU1, leave a running M4, then one console
 #   pb2-demo --tmux          same start, in tmux session pb2 (four windows)
 #   pb2-demo --attach        do not stop or start any core
 #   pb2-demo --attach --tmux attach to session pb2, or open it without a restart
@@ -22,9 +22,9 @@ usage() {
 	cat <<'EOF'
 usage: pb2-demo [--tmux] [--attach]
 
-  (default)  Stop the M4, PRU0, and PRU1, start them again, and print
-             one console. Each line is prefixed [Linux], [M4], [PRU0],
-             or [PRU1].
+  (default)  Start PRU0 and PRU1. If the M4 is already running, leave
+             it. Otherwise start it. Then print one console. Each line
+             is prefixed [Linux], [M4], [PRU0], or [PRU1].
   --tmux     Same start, in tmux session pb2. Windows: linux, zephyr,
              pru0, pru1.
   --attach   Do not stop or start any core. Connect to what is already
@@ -135,6 +135,17 @@ load_fw() {
 		echo "missing $src" >&2
 		exit 1
 	fi
+	# The kernel (or U-Boot) may already have started the M4. Stopping
+	# that core times out in k3_rproc_stop and the write returns EBUSY.
+	# Leave it running and do not write state again.
+	if [[ $name == "$M4_NAME" ]]; then
+		rproc=$(rproc_by_name "$name")
+		state=$(cat "$rproc/state")
+		if [[ $state == running ]]; then
+			echo "$name is already running. Leaving it."
+			return 0
+		fi
+	fi
 	stop_core "$name"
 	rproc=$(rproc_by_name "$name")
 	dest=/lib/firmware/$fwname
@@ -159,8 +170,16 @@ find_rpmsg() {
 	return 1
 }
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+# Prefer the copies sitting next to this script (/root on the image).
+# Otherwise use /lib/firmware, then a Debian build tree relative to cwd.
 firmware_path() {
-	local packaged=$1 built=$2
+	local beside=$1 packaged=$2 built=$3
+	if [[ -f $SCRIPT_DIR/$beside ]]; then
+		echo "$SCRIPT_DIR/$beside"
+		return 0
+	fi
 	if [[ -f $packaged ]]; then
 		echo "$packaged"
 		return 0
@@ -169,7 +188,7 @@ firmware_path() {
 		echo "$built"
 		return 0
 	fi
-	echo "missing $packaged" >&2
+	echo "missing $beside" >&2
 	return 1
 }
 
@@ -203,7 +222,11 @@ if [[ $USE_TMUX -eq 1 ]] && ! command -v tmux >/dev/null 2>&1; then
 	exit 1
 fi
 
-BIN=$(command -v pb2 || true)
+if [[ -x $SCRIPT_DIR/pb2 ]]; then
+	BIN=$SCRIPT_DIR/pb2
+else
+	BIN=$(command -v pb2 || true)
+fi
 if [[ -z $BIN ]]; then
 	echo "pb2 is not on PATH" >&2
 	exit 1
@@ -237,9 +260,9 @@ if [[ $ATTACH -eq 0 ]]; then
 	stop_viewers
 	sleep 0.3
 	ensure_pru_kick
-	PRU0_FW=$(firmware_path /lib/firmware/am62x-pru0-fw pru/build/am62x-pru0-fw)
-	PRU1_FW=$(firmware_path /lib/firmware/am62x-pru1-fw pru/build/am62x-pru1-fw)
-	M4_FW=$(firmware_path /lib/firmware/am62-mcu-m4f0_0-fw build/zephyr/pb2_m4.elf)
+	PRU0_FW=$(firmware_path am62x-pru0-fw /lib/firmware/am62x-pru0-fw pru/build/am62x-pru0-fw)
+	PRU1_FW=$(firmware_path am62x-pru1-fw /lib/firmware/am62x-pru1-fw pru/build/am62x-pru1-fw)
+	M4_FW=$(firmware_path pb2_m4.elf /lib/firmware/am62-mcu-m4f0_0-fw build/zephyr/pb2_m4.elf)
 	load_fw "$PRU0_NAME" am62x-pru0-fw "$PRU0_FW"
 	load_fw "$PRU1_NAME" am62x-pru1-fw "$PRU1_FW"
 	load_fw "$M4_NAME" am62-mcu-m4f0_0-fw "$M4_FW"
@@ -262,6 +285,12 @@ done
 if [[ -z $ZEPHYR_DEV || -z $PRU0_DEV ]]; then
 	echo "RPMsg devices did not show up" >&2
 	echo "m4=${ZEPHYR_DEV:-missing} pru0=${PRU0_DEV:-missing}" >&2
+	if [[ -z $ZEPHYR_DEV ]]; then
+		state=$(cat "$(rproc_by_name "$M4_NAME")/state" 2>/dev/null || true)
+		if [[ $state == running ]]; then
+			echo "$M4_NAME is running but its RPMsg channel is not there. Not stopping it." >&2
+		fi
+	fi
 	exit 1
 fi
 

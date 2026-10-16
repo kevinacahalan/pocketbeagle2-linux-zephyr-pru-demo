@@ -1,10 +1,15 @@
 [Unit]
 Description=BeagleBoard.org USB gadgets
-After=usb-gadget.target
+After=sys-kernel-config.mount usb-gadget.target
+Requires=sys-kernel-config.mount
 ConditionFileIsExecutable=/usr/bin/bb-start-usb-gadgets
 
 [Service]
-Type=forking
+# The Beagle script does not fork. systemd 259 treats a forking unit
+# with no remaining main process as stopped, which drops the ACM getty
+# start. Stay active after the configfs gadget is bound.
+Type=oneshot
+RemainAfterExit=yes
 ExecStartPre=/sbin/modprobe libcomposite
 ExecStart=/usr/bin/bb-start-usb-gadgets
 

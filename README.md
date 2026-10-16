@@ -46,7 +46,7 @@ KAS_BUILD_DIR=yocto/build ./kas-container build yocto/kas/pb2-poky.yml
 
 The machine, kernel, and layers come from TI's `kas/poky-wrynose-config.yml`. The distro is poky. The target is `pb2-demo-image` (core-image-minimal plus this demo). The build compiles `pb2`, the Zephyr M4 ELF, and both PRU firmwares. It does not load or stop `78000000.r5f`. Downloads and shared state stay under `yocto/` and are not committed.
 
-`pb2-demo-image` uses systemd. It already contains `/usr/bin/pb2` and `/usr/bin/pb2-demo`. `pb2-demo` is on `PATH`. The serial console is `ttyS2` at 115200. The account is the uid 1000 account the PocketBeagle 2 Debian IoT image ships. No password is stored in this image. Before the first boot, set `user_password` in `sysconf.txt` on the FAT boot partition if you want one. The same home also holds the Debian build-tree layout: `linux-app/pb2`, `beagle-linux/scripts/pb2-demo`, `pru/build/am62x-pru0-fw`, `pru/build/am62x-pru1-fw`, and `build/zephyr/pb2_m4.elf`. The M4 ELF is `/lib/firmware/am62-mcu-m4f0_0-fw`. The PRU firmwares are `/lib/firmware/am62x-pru0-fw` and `/lib/firmware/am62x-pru1-fw`. U-Boot loads that M4 ELF when it is present. The default extlinux label selects the three overlay blobs, so SPI0 and P1.20 take the demo mux on the next boot. USB comes up as the Beagle NCM gadget. `pb2-demo` does not stop or reload `78000000.r5f`.
+`pb2-demo-image` uses systemd. It already contains `/usr/bin/pb2` and `/usr/bin/pb2-demo`. `pb2-demo` is on `PATH`. The serial console is `ttyS2` at 115200. Login is root, home `/root`. The image does not add another account and does not set a password. `/root` holds `README.md`, `pb2`, `pb2-demo`, `pb2_m4.elf`, `am62x-pru0-fw`, and `am62x-pru1-fw`. From that directory, `./pb2-demo` starts the demo. The M4 ELF is `/lib/firmware/am62-mcu-m4f0_0-fw`. The PRU firmwares are `/lib/firmware/am62x-pru0-fw` and `/lib/firmware/am62x-pru1-fw`. U-Boot loads that M4 ELF when it is present. The default extlinux label selects the three overlay blobs, so SPI0 and P1.20 take the demo mux on the next boot. USB comes up as the Beagle NCM gadget on `usb0` and the ACM serial gadget (`serial-getty@ttyGS0.service`). `pb2-demo` does not stop or reload `78000000.r5f`. If the kernel already started the M4, `pb2-demo` leaves it running.
 
 ## Build
 
@@ -225,7 +225,7 @@ From the linux window the commands are `pru0 xy <x> <y>` and `zephyr xy <x> <y>`
 pb2-demo
 ```
 
-That stops the M4, PRU0, and PRU1, starts them again, and merges their output on this console. Each line is prefixed `[Linux]`, `[M4]`, `[PRU0]`, or `[PRU1]`. It never stops, reloads, or replaces `78000000.r5f`.
+That starts PRU0 and PRU1. If the M4 is already running, it leaves it. Otherwise it starts the M4. Output is merged on this console. Each line is prefixed `[Linux]`, `[M4]`, `[PRU0]`, or `[PRU1]`. It never stops, reloads, or replaces `78000000.r5f`.
 
 ```
 pb2-demo --tmux
@@ -250,7 +250,7 @@ Detach, which leaves the session running and returns you to the shell: Ctrl+b, t
 
 The script needs root or sudo to stop and start the M4 and the two PRUs, insert `pru_rproc.ko` when the running kernel is missing `pru_rproc_kick`, and grant `pb2` `CAP_SYS_RAWIO` so it can open `/dev/mem`. From the Linux console: `zephyr say <text>`, `zephyr arm <period> <count>`, `zephyr chunk <text>`, `zephyr xy <x> <y>`, `zephyr spi [text]`, `pru0 xy <x> <y>`, `pru0 <text>`, or `spi`. `zephyr spi` asks the M4 to write SPI2. With no text it sends the five-byte hello. With text it sends those bytes. `spi` is the Linux `/dev/spidev0.0` hello. `zephyr arm` asks PRU0, through the mailbox, to arm PRU1. `pru0 arm <period> <count>` does that directly. `chunk` writes the bulk region and then calls Zephyr to check it. `xy` hands PRU0 the pair described above.
 
-The Linux side still sends a startup script before it reads commands: ping PRU0, `say hello from linux`, `arm 100000 30`, `chunk bulk-hello`, then `pru0 arm 250000 20`. That script is not the X/Y measurement below.
+The Linux side sends a startup script before it reads commands: ping PRU0, `say hello from linux`, `arm 100000 30`, `chunk bulk-hello`, `xy 41 83`, `spi`, then `pru0 arm 250000 20`.
 
 The Debian image does not ship this runner. [BeagleBoard Debian](#beagleboard-debian) is what that image still needs installed. The Yocto image already has `pb2-demo` on `PATH`.
 

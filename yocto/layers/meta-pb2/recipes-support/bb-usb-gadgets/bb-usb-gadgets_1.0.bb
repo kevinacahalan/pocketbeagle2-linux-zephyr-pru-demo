@@ -1,5 +1,5 @@
 SUMMARY = "BeagleBoard.org USB gadgets"
-DESCRIPTION = "PocketBeagle 2 USB gadget startup from bb-usb-gadgets (Debian trixie). Brings up the NCM usb0 gadget and the ACM serial gadget the way that image does."
+DESCRIPTION = "PocketBeagle 2 USB gadget startup from bb-usb-gadgets (Debian trixie). Brings up the NCM usb0 gadget and the ACM serial gadget the way that image does, and enables serial-getty@ttyGS0."
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://copyright;md5=61a7c7c298652e07e0c0260ef8707942"
 
@@ -34,6 +34,12 @@ do_install() {
     install -m 0755 ${S}/bb-start-usb-gadgets ${D}${bindir}/
     install -m 0755 ${S}/bb-start-acm-ncm-rndis-old-gadget ${D}${bindir}/
     install -m 0644 ${S}/bb-usb-gadgets.service ${D}${systemd_system_unitdir}/
+
+    # Same ACM console the gadget script starts. Enabled here so the
+    # getty is waiting for /dev/ttyGS0 instead of only a runtime start.
+    install -d ${D}${sysconfdir}/systemd/system/getty.target.wants
+    ln -sf ${systemd_system_unitdir}/serial-getty@.service \
+        ${D}${sysconfdir}/systemd/system/getty.target.wants/serial-getty@ttyGS0.service
 
     install -m 0644 ${S}/bb-boot ${D}${sysconfdir}/bbb.io/templates/bb-boot
     install -m 0644 ${S}/bb-boot ${D}${sysconfdir}/default/bb-boot

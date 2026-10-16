@@ -1,6 +1,7 @@
-# PocketBeagle 2 Debian IoT layout: FAT boot, swap, ext4 root.
-# U-Boot extlinux on the boot partition uses root=/dev/mmcblk1p3
-# and resume=/dev/mmcblk1p2.
+# FAT boot, ext4 root, swap.
+# U-Boot's pocketbeagle2 env sets mmcdev=1 and bootpart=1:2, then
+# loads /boot/Image and /boot/dtb/${fdtfile} from that partition.
+# Partition 2 has to be the rootfs. Swap stays as partition 3.
 part --source bootimg-partition --fstype=vfat --label boot --active --align 1024 --use-uuid --fixed-size 256M
-part --fstype=swap --label swap --align 1024 --use-uuid --size 1024
 part / --source rootfs --fstype=ext4 --label root --align 1024 --use-uuid
+part --fstype=swap --label swap --align 1024 --use-uuid --size 1024

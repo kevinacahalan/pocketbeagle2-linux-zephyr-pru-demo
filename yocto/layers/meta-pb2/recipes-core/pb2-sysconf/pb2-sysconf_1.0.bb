@@ -1,5 +1,5 @@
 SUMMARY = "First-boot Beagle account settings"
-DESCRIPTION = "Reads account keys from the boot-partition sysconf.txt. The uid 1000 account is already in the image. This service renames it or sets a password only when those keys are filled in."
+DESCRIPTION = "Reads account keys from the boot-partition sysconf.txt. The shipped file leaves them commented, so first boot does not rename an account or set a password."
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
 

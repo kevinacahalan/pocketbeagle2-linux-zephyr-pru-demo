@@ -640,6 +640,14 @@ static int linux_main(int argc, char **argv)
 		return 1;
 	}
 	usleep(300000);
+	if (send_to(zephyr, "zephyr", "xy 41 83")) {
+		return 1;
+	}
+	usleep(300000);
+	if (send_to(zephyr, "zephyr", "spi")) {
+		return 1;
+	}
+	usleep(300000);
 	if (send_to(pru0, "pru0", "arm 250000 20")) {
 		return 1;
 	}

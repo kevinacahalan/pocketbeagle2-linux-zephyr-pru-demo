@@ -86,7 +86,7 @@ run_libcomposite () {
 		mkdir $CONFIGFS/g_multi/strings/0x409 || echo "${log} Couldn't create $CONFIGFS/g_multi/strings/0x409"
 
 		echo "$usb_imanufacturer" > "$CONFIGFS/g_multi/strings/0x409/manufacturer"
-		echo "$usb_iserialnumber" > "$CONFIGFS/g_multi/strings/0x409/serialnumber"
+		echo "$usb_serialnumber" > "$CONFIGFS/g_multi/strings/0x409/serialnumber"
 		echo "$usb_iproduct" > "$CONFIGFS/g_multi/strings/0x409/product"
 
 		# Windows extension to use IAD (Interface Association Descriptor)
@@ -168,7 +168,8 @@ run_libcomposite () {
 
 		if [ ! "x${USB_SERIAL_GADGET_DISABLED}" = "xyes" ] ; then
 			echo "${log} start serial-getty@ttyGS0.service"
-			systemctl start serial-getty@ttyGS0.service || true
+			# Type=idle will not run while this oneshot is still starting.
+			systemctl start --no-block serial-getty@ttyGS0.service || true
 		fi
 	fi
 }
