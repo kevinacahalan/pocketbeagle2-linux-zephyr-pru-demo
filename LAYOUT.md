@@ -15,13 +15,13 @@ Debian pieces for the BeagleBoard image: overlays, the patched `pru_rproc` modul
 - `beagle-linux/scripts/build.sh` — builds the container images, then compiles
 - `beagle-linux/scripts/pb2-demo` — on-target runner, installed as `/usr/bin/pb2-demo`
 
-## Zephyr — `zephyr-m4/`
+## Zephyr — `zephyr/`
 
-- `zephyr-m4/m4/` — M4 app, board `pocketbeagle_2/am6254/m4`
-- `zephyr-m4/include/pb2_shm.h` — mailbox header shared with the PRU
-- `zephyr-m4/west.yml` — pinned Zephyr `main` commit, `import: true`
+- `zephyr/m4/` — M4 app, board `pocketbeagle_2/am6254/m4`
+- `zephyr/include/pb2_shm.h` — mailbox header shared with the PRU
+- `zephyr/west.yml` — pinned Zephyr `main` commit, `import: true`, project path `zephyr/upstream`
 
-`west init -l zephyr-m4` from the repo root sets the workspace topdir to the parent of that directory, which is where `.west/`, `zephyr/`, `modules/`, and `build/` already live. Do not run `west init -l .` from the repo root.
+`west init -l zephyr` from the repo root sets the workspace topdir to the parent of that directory, the repo root. `.west/`, `modules/`, and `build/` stay there. The upstream Zephyr tree is `zephyr/upstream`. Do not run `west init -l .` from the repo root.
 
 ## PRU — `pru/pru0/` and `pru/pru1/`
 

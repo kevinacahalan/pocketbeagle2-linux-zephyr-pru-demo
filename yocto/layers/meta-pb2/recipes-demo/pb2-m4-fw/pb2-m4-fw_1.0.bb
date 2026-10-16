@@ -1,5 +1,5 @@
 SUMMARY = "PocketBeagle 2 Zephyr M4 demo firmware"
-DESCRIPTION = "Builds zephyr-m4 for pocketbeagle_2/am6254/m4 with the Zephyr SDK and a west workspace fetched during the build. Installs the ELF as am62-mcu-m4f0_0-fw."
+DESCRIPTION = "Builds the M4 app in zephyr/ for pocketbeagle_2/am6254/m4 with the Zephyr SDK and a west workspace fetched during the build. Installs the ELF as am62-mcu-m4f0_0-fw."
 LICENSE = "BSD-3-Clause & CLOSED"
 LIC_FILES_CHKSUM = "file://third_party/erpc/LICENSE;md5=b66f32a90f9577a5a3255c21d79bc619"
 
@@ -8,7 +8,11 @@ DEPENDS = "cmake-native ninja-native gperf-native dtc-native python3-native pyth
 FILESEXTRAPATHS:prepend := "${@os.path.abspath(os.path.join(os.path.dirname(d.getVar('FILE')), '..', '..', '..', '..', '..'))}/:"
 
 SRC_URI = " \
-    file://zephyr-m4 \
+    file://zephyr/west.yml \
+    file://zephyr/m4 \
+    file://zephyr/include \
+    file://zephyr/erpc \
+    file://zephyr/scripts \
     git://github.com/EmbeddedRPC/erpc.git;protocol=https;nobranch=1;destsuffix=src/third_party/erpc;name=erpc \
     https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/zephyr-sdk-1.0.1_linux-x86_64_minimal.tar.xz;name=sdk;subdir=sdk \
     https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/toolchain_gnu_linux-x86_64_arm-zephyr-eabi.tar.xz;name=armtc;subdir=sdk/zephyr-sdk-1.0.1/gnu \
@@ -26,8 +30,8 @@ PACKAGE_ARCH = "${MACHINE_ARCH}"
 INSANE_SKIP:${PN} += "arch buildpaths"
 
 do_configure () {
-    rm -rf ${S}/zephyr-m4
-    cp -a ${UNPACKDIR}/zephyr-m4 ${S}/zephyr-m4
+    rm -rf ${S}/zephyr
+    cp -a ${UNPACKDIR}/zephyr ${S}/zephyr
     test -f ${S}/third_party/erpc/LICENSE
     test -x ${ZEPHYR_SDK}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc || \
         test -x ${ZEPHYR_SDK}/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc
@@ -54,13 +58,13 @@ do_compile () {
     mkdir -p "$ws"
     cp -a ${S}/. "$ws/"
     cd "$ws"
-    west init -l zephyr-m4
+    west init -l zephyr
     west update
-    "$ws/zephyr-m4/scripts/apply-patches.sh"
-    if [ -f zephyr/scripts/requirements-base.txt ]; then
-        pip3 install --target ${WORKDIR}/py -r zephyr/scripts/requirements-base.txt
+    "$ws/zephyr/scripts/apply-patches.sh"
+    if [ -f zephyr/upstream/scripts/requirements-base.txt ]; then
+        pip3 install --target ${WORKDIR}/py -r zephyr/upstream/scripts/requirements-base.txt
     fi
-    west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4 -d "$ws/zbuild" -p always
+    west build -b pocketbeagle_2/am6254/m4 zephyr/m4 -d "$ws/zbuild" -p always
     if [ -f "$ws/zbuild/zephyr/pb2_m4.elf" ]; then
         elf="$ws/zbuild/zephyr/pb2_m4.elf"
     else

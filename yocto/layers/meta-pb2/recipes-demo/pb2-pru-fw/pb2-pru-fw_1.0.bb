@@ -14,7 +14,7 @@ SRC_URI = " \
     file://pru/pru1/main.c;subdir=src \
     file://pru/pru1/slip_tx.asm;subdir=src \
     file://pru/pru1/AM62x_PRU1.cmd;subdir=src \
-    file://zephyr-m4/include/pb2_shm.h;subdir=src \
+    file://zephyr/include/pb2_shm.h;subdir=src \
     git://git.ti.com/git/pru-software-support-package/pru-software-support-package.git;protocol=https;nobranch=1;destsuffix=pssp;name=pssp \
 "
 SRCREV_pssp = "28107daa1d184059f67676ba49d0fcaebb0f6a96"

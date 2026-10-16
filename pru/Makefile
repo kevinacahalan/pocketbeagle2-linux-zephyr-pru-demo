@@ -17,7 +17,7 @@ LFLAGS := --reread_libs --warn_sections --stack_size=0x200 --heap_size=0x100
 INCLUDE := --include_path=$(PRU_CGT)/include \
 	--include_path=$(PSSP)/include \
 	--include_path=$(PSSP)/include/am62x \
-	--include_path=$(ROOT)/zephyr-m4/include
+	--include_path=$(ROOT)/zephyr/include
 
 .PHONY: all clean core
 all: $(BUILD)/am62x-pru0-fw $(BUILD)/am62x-pru1-fw
