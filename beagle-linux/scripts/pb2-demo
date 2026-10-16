@@ -67,6 +67,7 @@ write_sysfs() {
 rproc_by_name() {
 	local want=$1 d name
 	if [[ $want == "$R5" ]]; then
+		echo "refusing to use $want" >&2
 		return 1
 	fi
 	for d in /sys/class/remoteproc/remoteproc*; do
@@ -135,6 +136,7 @@ load_fw() {
 		rproc=$(rproc_by_name "$name")
 		state=$(cat "$rproc/state")
 		if [[ $state == running ]]; then
+			echo "$name is already running. Leaving it."
 			return 0
 		fi
 	fi
@@ -277,6 +279,12 @@ done
 if [[ -z $ZEPHYR_DEV || -z $PRU0_DEV ]]; then
 	echo "RPMsg devices did not show up" >&2
 	echo "m4=${ZEPHYR_DEV:-missing} pru0=${PRU0_DEV:-missing}" >&2
+	if [[ -z $ZEPHYR_DEV ]]; then
+		state=$(cat "$(rproc_by_name "$M4_NAME")/state" 2>/dev/null || true)
+		if [[ $state == running ]]; then
+			echo "$M4_NAME is running but its RPMsg channel is not there. Not stopping it." >&2
+		fi
+	fi
 	exit 1
 fi
 
@@ -287,6 +295,8 @@ if [[ -z $SETCAP && -x /usr/sbin/setcap ]]; then
 fi
 if [[ -n $SETCAP ]]; then
 	as_root "$SETCAP" cap_sys_rawio+ep "$BIN"
+else
+	echo "setcap is not installed; /dev/mem access may fail" >&2
 fi
 as_root chmod 0660 /dev/mem
 
