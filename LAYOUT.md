@@ -1,6 +1,6 @@
 # Layout
 
-The root keeps this note, `README.md`, `PINMUX.md`, `.gitignore`, `linux-app/`, `manifest/` (the west manifest), and `containers/` (the three build images). Generated trees stay at the root and are not committed.
+The root keeps this note, `README.md`, `PINMUX.md`, `.gitignore`, `linux-app/`, and `containers/` (the three build images). Generated trees stay at the root and are not committed.
 
 ## Linux app — `linux-app/`
 
@@ -15,13 +15,13 @@ Debian pieces for the BeagleBoard image: overlays, the patched `pru_rproc` modul
 - `beagle-linux/scripts/build.sh` — builds the container images, then compiles
 - `beagle-linux/scripts/pb2-demo` — on-target runner, installed as `/usr/bin/pb2-demo`
 
-## Zephyr — `zephyr-m4/` and `manifest/`
+## Zephyr — `zephyr-m4/`
 
 - `zephyr-m4/m4/` — M4 app, board `pocketbeagle_2/am6254/m4`
 - `zephyr-m4/include/pb2_shm.h` — mailbox header shared with the PRU
-- `manifest/west.yml` — pinned Zephyr `main` commit, `import: true`
+- `zephyr-m4/west.yml` — pinned Zephyr `main` commit, `import: true`
 
-`manifest/` stays at the repo root. `west init -l manifest` from the repo root sets the workspace topdir to the parent of that directory, which is where `.west/`, `zephyr/`, `modules/`, and `build/` already live. Do not run `west init -l .` from the repo root.
+`west init -l zephyr-m4` from the repo root sets the workspace topdir to the parent of that directory, which is where `.west/`, `zephyr/`, `modules/`, and `build/` already live. Do not run `west init -l .` from the repo root.
 
 ## PRU — `pru/pru0/` and `pru/pru1/`
 

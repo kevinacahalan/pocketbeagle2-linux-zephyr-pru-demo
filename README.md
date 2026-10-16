@@ -92,7 +92,7 @@ The kernel module is `./beagle-linux/scripts/build.sh kmod` and needs the Debian
 
    PRU0, the transfer core, is `pru/pru0/` (`main.c` and `AM62x_PRU0.cmd`). PRU1, the SLIP frame, is `pru/pru1/`: the sample loop is `main.c`, the pin shifting is `slip_tx.asm`, and the linker script is `AM62x_PRU1.cmd`. Output: `pru/build/am62x-pru0-fw` and `pru/build/am62x-pru1-fw`.
 
-3. Zephyr on the M4. Image `pb2-zephyr-sdk` from `containers/zephyr/Containerfile`, the Zephyr CI image with `ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1`. When `.west/` is missing, the container runs `west init -l manifest` from the repo root, then `west update`, `zephyr-m4/scripts/apply-patches.sh`, and `west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4`. `west update` checks out the commit in `manifest/west.yml` and drops local edits under `zephyr/`. `zephyr-m4/patches/` is empty: that `main` commit already releases the hardware chip select, so an active-low SPIEN idles high without a local patch.
+3. Zephyr on the M4. Image `pb2-zephyr-sdk` from `containers/zephyr/Containerfile`, the Zephyr CI image with `ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1`. When `.west/` is missing, the container runs `west init -l zephyr-m4` from the repo root, then `west update`, `zephyr-m4/scripts/apply-patches.sh`, and `west build -b pocketbeagle_2/am6254/m4 zephyr-m4/m4`. `west update` checks out the commit in `zephyr-m4/west.yml` and drops local edits under `zephyr/`. `zephyr-m4/patches/` is empty: that `main` commit already releases the hardware chip select, so an active-low SPIEN idles high without a local patch.
 
    ```
    ./beagle-linux/scripts/build.sh zephyr
@@ -111,8 +111,8 @@ The kernel module is `./beagle-linux/scripts/build.sh kmod` and needs the Debian
 ### Common problems
 
 - **No podman or docker.** Install one of them. `build.sh` runs under either: set `PB2_CONTAINER_ENGINE` to `podman` or `docker`. kas-container takes `KAS_CONTAINER_ENGINE` set to `podman` or `docker`.
-- **West checkout.** Do not run `west init -l .` from the repo root. That puts `.west/`, `zephyr/`, and `modules/` in the parent directory. The script uses `west init -l manifest`, which keeps the workspace at the repo root. If an old `.west/` points somewhere else, remove it and run the Zephyr build again. `west update` resets `zephyr/` to the pinned commit.
-- **Zephyr pin.** `manifest/west.yml` sets `revision` to a commit hash. The comment on that line says the hash is Zephyr `main` on 11 Oct 2026. The revision is not a branch name and not a tag. `west update` has to fetch that commit from `zephyrproject-rtos/zephyr`.
+- **West checkout.** Do not run `west init -l .` from the repo root. That puts `.west/`, `zephyr/`, and `modules/` in the parent directory. The script uses `west init -l zephyr-m4`, which keeps the workspace at the repo root. If an old `.west/` points somewhere else, remove it and run the Zephyr build again. `west update` resets `zephyr/` to the pinned commit.
+- **Zephyr pin.** `zephyr-m4/west.yml` sets `revision` to a commit hash. The comment on that line says the hash is Zephyr `main` on 11 Oct 2026. The revision is not a branch name and not a tag. `west update` has to fetch that commit from `zephyrproject-rtos/zephyr`.
 - **Overlay headers.** `ti/k3-pinctrl.h` is not in this repository. `./beagle-linux/scripts/build.sh linux` clones BeagleBoard-DeviceTrees commit `550f7711a4696d5f5e92505289379b754e871313` into `third_party/BeagleBoard-DeviceTrees` and preprocesses the overlays with it. If that clone fails, the `.dtbo` files are not produced.
 
 ### Zephyr devicetree overlay
@@ -346,7 +346,7 @@ pru1 xy seq=2 x=41 y=83 consumed=2
 
 ## Checked in and temporary
 
-Checked in: `linux-app/`, `beagle-linux/`, `containers/`, `zephyr-m4/`, `pru/` sources, `yocto/`, `manifest/west.yml`, `PINMUX.md`, this README, and `LAYOUT.md`.
+Checked in: `linux-app/`, `beagle-linux/`, `containers/`, `zephyr-m4/`, `pru/` sources, `yocto/`, `PINMUX.md`, this README, and `LAYOUT.md`.
 
 Left on disk and not committed:
 

@@ -168,7 +168,7 @@ build_zephyr() {
 			export ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1
 			git config --global --add safe.directory "*"
 			if [[ ! -d .west ]]; then
-				west init -l manifest
+				west init -l zephyr-m4
 			fi
 			# west update checks out the manifest revision and drops local edits.
 			# apply-patches.sh reapplies zephyr-m4/patches/ when that directory

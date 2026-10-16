@@ -9,7 +9,6 @@ FILESEXTRAPATHS:prepend := "${@os.path.abspath(os.path.join(os.path.dirname(d.ge
 
 SRC_URI = " \
     file://zephyr-m4 \
-    file://manifest/west.yml \
     git://github.com/EmbeddedRPC/erpc.git;protocol=https;nobranch=1;destsuffix=src/third_party/erpc;name=erpc \
     https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/zephyr-sdk-1.0.1_linux-x86_64_minimal.tar.xz;name=sdk;subdir=sdk \
     https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/toolchain_gnu_linux-x86_64_arm-zephyr-eabi.tar.xz;name=armtc;subdir=sdk/zephyr-sdk-1.0.1/gnu \
@@ -27,10 +26,8 @@ PACKAGE_ARCH = "${MACHINE_ARCH}"
 INSANE_SKIP:${PN} += "arch buildpaths"
 
 do_configure () {
-    rm -rf ${S}/manifest ${S}/zephyr-m4
-    mkdir -p ${S}/manifest
+    rm -rf ${S}/zephyr-m4
     cp -a ${UNPACKDIR}/zephyr-m4 ${S}/zephyr-m4
-    install -m 0644 ${UNPACKDIR}/manifest/west.yml ${S}/manifest/west.yml
     test -f ${S}/third_party/erpc/LICENSE
     test -x ${ZEPHYR_SDK}/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc || \
         test -x ${ZEPHYR_SDK}/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc
@@ -57,7 +54,7 @@ do_compile () {
     mkdir -p "$ws"
     cp -a ${S}/. "$ws/"
     cd "$ws"
-    west init -l manifest
+    west init -l zephyr-m4
     west update
     "$ws/zephyr-m4/scripts/apply-patches.sh"
     if [ -f zephyr/scripts/requirements-base.txt ]; then
