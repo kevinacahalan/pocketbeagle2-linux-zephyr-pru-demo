@@ -61,13 +61,13 @@ flowchart LR
   pru0 -->|"x, y, seq"| xy
   arm --> pru1
   xy --> pru1
-  pru1 -->|"tick, done, applied_seq"| arm
+  pru1 -->|"tick, done, applied_seq, applied_period"| arm
   pru1 -->|"consumed"| xy
   arm --> watch
   xy --> watch
 ```
 
-`do_chunk` and `watch_main` use `map_phys` on `/dev/mem`. `takeChunk` and `pb2_shm_publish` use the same DDR addresses from the M4. `publish_xy` and `arm_pru1` use the PRU local addresses of that shared RAM.
+`do_chunk`, `watch_main`, and `xy_main` use `map_phys` on `/dev/mem`. `takeChunk` and `pb2_shm_publish` use the same DDR addresses from the M4. `publish_xy` and `arm_pru1` use the PRU local addresses of that shared RAM.
 
 Zephyr SPI2 stays on the M4. The boot path also leaves a status string in the mailbox PRU0 already polls.
 
