@@ -4,6 +4,7 @@
 .
 ├── README.md
 ├── PINMUX.md
+├── COMMS.md
 ├── linux-app/
 ├── beagle-linux/
 │   ├── overlays/
@@ -42,6 +43,8 @@
 `README.md` — what the demo does and how to build it.
 
 `PINMUX.md` — header pins and which core owns them.
+
+`COMMS.md` — how calls and data move between cores.
 
 `linux-app/` — the `pb2` userspace program. `linux-app/pb2` is a build product.
 
