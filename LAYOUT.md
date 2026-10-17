@@ -1,42 +1,76 @@
 # Layout
 
-The root keeps this note, `README.md`, `PINMUX.md`, `.gitignore`, `linux-app/`, and `containers/` (the three build images). Generated trees stay at the root and are not committed.
+```
+.
+├── README.md
+├── PINMUX.md
+├── linux-app/
+├── beagle-linux/
+│   ├── overlays/
+│   ├── kernel/pru_rproc/
+│   └── scripts/
+├── zephyr/
+│   ├── m4/
+│   ├── include/
+│   ├── erpc/
+│   ├── west.yml
+│   └── upstream/          generated
+├── pru/
+│   ├── pru0/
+│   ├── pru1/
+│   └── build/             generated
+├── yocto/
+│   ├── kas/
+│   ├── layers/meta-pb2/
+│   ├── sources/           generated
+│   ├── downloads/         generated
+│   ├── build/             generated
+│   └── sstate-cache/      generated
+├── containers/
+│   ├── linux/
+│   ├── pru-cgt/
+│   └── zephyr/
+├── .west/                 generated
+├── modules/               generated
+├── bootloader/            generated
+├── tools/                 generated
+├── build/                 generated
+├── third_party/           generated
+└── .cache/                generated
+```
 
-## Linux app — `linux-app/`
+`README.md` — what the demo does and how to build it.
 
-One userspace program, `pb2`. SPI hello is a command in that program, next to xy, arm, chunk, and say. Both the Debian build and the Yocto recipe compile this directory and install that one binary. `pb2-demo` is the runner that starts it. It is not a board-specific tree.
+`PINMUX.md` — header pins and which core owns them.
 
-## Beagle Linux — `beagle-linux/`
+`linux-app/` — the `pb2` userspace program. `linux-app/pb2` is a build product.
 
-Debian pieces for the BeagleBoard image: overlays, the patched `pru_rproc` module, and the on-target runner.
+`beagle-linux/` — Debian overlays, the patched `pru_rproc` module, and the on-target runner.
 
-- `beagle-linux/overlays/` — device-tree overlays, including `k3-am62-pocketbeagle2-leftover-gpio.dtso`. Pads are `AM62X_IOPAD()` lines. The build fetches BeagleBoard-DeviceTrees into `third_party/` for `ti/k3-pinctrl.h` and does not vendor that header.
-- `beagle-linux/kernel/pru_rproc/` — patched `pru_rproc` with virtio kick
-- `beagle-linux/scripts/build.sh` — builds the container images, then compiles
-- `beagle-linux/scripts/pb2-demo` — on-target runner, installed as `/usr/bin/pb2-demo`
+`beagle-linux/overlays/` — Linux device-tree overlays. The `.dtbo` blobs are build products.
 
-## Zephyr — `zephyr/`
+`beagle-linux/kernel/pru_rproc/` — `pru_rproc` with virtio kick.
 
-- `zephyr/m4/` — M4 app, board `pocketbeagle_2/am6254/m4`
-- `zephyr/include/pb2_shm.h` — mailbox header shared with the PRU
-- `zephyr/west.yml` — pinned Zephyr `main` commit, `import: true`, project path `zephyr/upstream`
+`beagle-linux/scripts/` — `build.sh` compiles in the containers; `pb2-demo` starts the demo on the board.
 
-`west init -l zephyr` from the repo root sets the workspace topdir to the parent of that directory, the repo root. `.west/`, `modules/`, and `build/` stay there. The upstream Zephyr tree is `zephyr/upstream`. Do not run `west init -l .` from the repo root.
+`zephyr/` — M4 app, shared mailbox header, eRPC shim, and the west manifest.
 
-## PRU — `pru/pru0/` and `pru/pru1/`
+`zephyr/m4/` — Zephyr app, board `pocketbeagle_2/am6254/m4`.
 
-`pru/pru0/` is the transfer core: its own `main.c` and `AM62x_PRU0.cmd`. `pru/pru1/` sends the SLIP frame: `main.c` is the sample loop, `slip_tx.asm` shifts the frame onto the pin, and `AM62x_PRU1.cmd` is its linker script. Images land in `pru/build/`. The TI support package is cloned to `third_party/` when building. Neither the images nor that package is committed.
+`zephyr/west.yml` — pins Zephyr at `zephyr/upstream`. From the repo root, `west init -l zephyr`.
 
-## Yocto — `yocto/`
+`zephyr/upstream/` — generated upstream Zephyr checkout.
 
-`yocto/kas/pb2-poky.yml` is the kas-container config for `pb2-demo-image`, a systemd Poky image for machine `pocketbeagle2`. `yocto/layers/meta-pb2` compiles `linux-app/`, the Zephyr M4 firmware, and both PRU firmwares, and installs `pb2-demo` on `PATH`. The default extlinux label selects the demo overlays. U-Boot loads the M4 ELF from `/lib/firmware` when it is present. `yocto/sources/`, `yocto/downloads/`, and `yocto/build/` are generated and not committed. Building the image does not write a card. The Debian path is separate and lives under `beagle-linux/`.
+`.west/`, `modules/`, `bootloader/`, `tools/`, `build/` — generated west workspace. `build/zephyr/pb2_m4.elf` is the M4 image.
 
-## Containers — `containers/`
+`pru/pru0/` — transfer core.
 
-- `containers/linux/Containerfile` — Linux userspace (`pb2-linux-userspace`)
-- `containers/pru-cgt/Containerfile` — TI CGT, then the PRU firmware image (`pb2-pru-cgt`)
-- `containers/zephyr/Containerfile` — Zephyr SDK (`pb2-zephyr-sdk`)
+`pru/pru1/` — SLIP frame.
 
-## Temporary
+`pru/build/` — generated PRU images, `am62x-pru0-fw` and `am62x-pru1-fw`.
 
-`README.md` lists what is checked in and what is left untracked.
+`yocto/` — kas config and the `meta-pb2` layer. Recipes there build `pb2`, the M4 ELF, and both PRU images.
+
+`containers/` — Containerfiles for the Linux, PRU, and Zephyr build images.
+
+`third_party/` — generated checkouts used by the build. Not vendored.
