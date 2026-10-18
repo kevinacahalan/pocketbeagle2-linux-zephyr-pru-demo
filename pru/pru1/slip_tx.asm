@@ -2,7 +2,10 @@
 ;
 ; PRU1 signal generation. transmit_xy is called from the C loop.
 ; It SLIP-frames X and Y, then shifts each byte out as UART 8N1 on R30 bit 5.
-; The bit wait is 2170 cycles: LDI + NOP + a 1084-iteration 2-cycle loop.
+; The bit delay is 2170 cycles: LDI + NOP + a 1084-iteration 2-cycle loop.
+; The bit-loop instructions around it add about 6 more, so a bit is about
+; 2176 cycles at 250 MHz, 114.9 kbaud. That is 0.3% slow, well inside what
+; a UART receiver accepts (a logic analyzer measured 87 us per character).
 ;
 
 	.sect	".text"

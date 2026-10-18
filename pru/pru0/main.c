@@ -218,6 +218,12 @@ void main(void)
 				 CHAN_PORT) != PRU_RPMSG_SUCCESS) {
 	}
 
+	/*
+	 * Adopt the mailbox seq already in DDR. Otherwise a restarted PRU0
+	 * replays the last command Zephyr published, such as an old xy.
+	 */
+	last_seq = shm->seq;
+
 	/* After the announce, so a shared-RAM store cannot block the channel. */
 	arm->magic = 0;
 	arm->seq = 0;
