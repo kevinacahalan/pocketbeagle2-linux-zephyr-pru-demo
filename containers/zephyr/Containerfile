@@ -1,7 +1,8 @@
 # Zephyr SDK image for the M4 firmware.
-# ghcr.io/zephyrproject-rtos/ci carries West and the SDK. This file names
-# that SDK so the build script does not hide the path in a shell one-liner.
-FROM ghcr.io/zephyrproject-rtos/ci:latest
+# ghcr.io/zephyrproject-rtos/ci carries West and the SDK. The image is pinned
+# by digest: :latest moves to new SDK releases, and the path below would then
+# break. This digest is the main-branch image of 30 Jul 2026 with SDK 1.0.1.
+FROM ghcr.io/zephyrproject-rtos/ci@sha256:0ec712148f29c9246c0b09a00a6f30a1ebd58c03e0976547ea14486a4e5e316b
 
 ENV ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1
 

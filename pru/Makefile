@@ -12,6 +12,7 @@ endif
 
 ROOT := $(abspath ..)
 BUILD := build
+SHM_H := $(ROOT)/zephyr/include/pb2_shm.h
 CFLAGS := -v3 -O2 --display_error_number --endian=little --hardware_mac=on
 LFLAGS := --reread_libs --warn_sections --stack_size=0x200 --heap_size=0x100
 INCLUDE := --include_path=$(PRU_CGT)/include \
@@ -22,13 +23,13 @@ INCLUDE := --include_path=$(PRU_CGT)/include \
 .PHONY: all clean core
 all: $(BUILD)/am62x-pru0-fw $(BUILD)/am62x-pru1-fw
 
-$(BUILD)/am62x-pru0-fw: pru0/main.c pru0/AM62x_PRU0.cmd
+$(BUILD)/am62x-pru0-fw: pru0/main.c pru0/AM62x_PRU0.cmd $(SHM_H)
 	$(MAKE) core CORE=0 SRC=pru0/main.c OUT=$@ \
 		LINK=pru0/AM62x_PRU0.cmd \
 		EXDIR=$(PSSP)/examples/am62x/PRU_RPMsg_Echo_Interrupt0 \
 		EXTRA_LIBS=--library=$(PSSP)/lib/rpmsg_lib.lib
 
-$(BUILD)/am62x-pru1-fw: pru1/main.c pru1/slip_tx.asm pru1/AM62x_PRU1.cmd
+$(BUILD)/am62x-pru1-fw: pru1/main.c pru1/slip_tx.asm pru1/AM62x_PRU1.cmd $(SHM_H)
 	$(MAKE) core CORE=1 SRC=pru1/main.c OUT=$@ \
 		LINK=pru1/AM62x_PRU1.cmd \
 		EXDIR=$(PSSP)/examples/am62x/PRU_RPMsg_Echo_Interrupt1 \

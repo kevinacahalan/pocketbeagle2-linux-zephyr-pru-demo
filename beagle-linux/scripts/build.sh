@@ -57,11 +57,15 @@ engine_build() {
 	fi
 }
 
+# Run as the host user, so everything written into the repo stays owned by
+# you. Without this, docker leaves root-owned files, and rootless podman
+# leaves files owned by a subordinate uid that you cannot delete.
 engine_run() {
 	if [[ $PB2_CONTAINER_ENGINE == podman ]]; then
-		podman run --rm --security-opt label=disable "$@"
+		podman run --rm --security-opt label=disable \
+			--userns=keep-id --user "$(id -u):$(id -g)" -e HOME=/tmp "$@"
 	else
-		docker run --rm "$@"
+		docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp "$@"
 	fi
 }
 
@@ -71,8 +75,16 @@ build_image() {
 	engine_build -t "$tag" -f "$file" "$(dirname "$file")"
 }
 
+# at_rev DIR REV: DIR is a git checkout whose HEAD is REV (a commit or tag).
+at_rev() {
+	local head want
+	head=$(git -C "$1" rev-parse HEAD 2>/dev/null) || return 1
+	want=$(git -C "$1" rev-parse "$2^{commit}" 2>/dev/null) || return 1
+	[[ $head == "$want" ]]
+}
+
 fetch_erpc() {
-	if [[ -f $ERPC/zephyr/module.yml ]]; then
+	if [[ -f $ERPC/zephyr/module.yml ]] && at_rev "$ERPC" "$ERPC_REV"; then
 		return
 	fi
 	rm -rf "$ERPC"
@@ -82,7 +94,7 @@ fetch_erpc() {
 # BeagleBoard-DeviceTrees v6.18.x provides ti/k3-pinctrl.h. The overlay
 # Makefile includes that header. This repository does not vendor a copy.
 fetch_bbdt() {
-	if [[ -f $BBDT/src/arm64/ti/k3-pinctrl.h ]] && [[ $(git -C "$BBDT" rev-parse HEAD 2>/dev/null || true) == "$BBDT_REV" ]]; then
+	if [[ -f $BBDT/src/arm64/ti/k3-pinctrl.h ]] && at_rev "$BBDT" "$BBDT_REV"; then
 		return
 	fi
 	rm -rf "$BBDT"
@@ -92,7 +104,7 @@ fetch_bbdt() {
 }
 
 fetch_pssp() {
-	if [[ -f $PSSP/lib/rpmsg_lib.lib ]]; then
+	if [[ -f $PSSP/lib/rpmsg_lib.lib ]] && at_rev "$PSSP" "$PSSP_REV"; then
 		return
 	fi
 	rm -rf "$PSSP"
@@ -124,14 +136,16 @@ build_pru() {
 # The PRU remoteproc patch has to match the board kernel. Headers are copied
 # from the board once; the module itself is cross-compiled in the Linux image.
 build_kmod() {
-	local krel=${PB2_KREL:-6.18.52-arm64-k3-r56}
-	local headers=$CACHE/linux-headers-$krel
 	local host=${PB2_SSH:-}
+	local krel headers
 	if [[ -z $host ]]; then
-		echo "Set PB2_SSH to the Debian login you chose. The board must have the matching kernel headers." >&2
-		echo "PB2_KREL must be uname -r on that board." >&2
+		echo "Set PB2_SSH to the board's ssh login, for example PB2_SSH=debian@192.168.7.2." >&2
+		echo "The board must have linux-headers for its running kernel installed." >&2
 		exit 1
 	fi
+	krel=${PB2_KREL:-$(ssh "$host" uname -r)}
+	headers=$CACHE/linux-headers-$krel
+	echo "building pru_rproc for $krel"
 	build_image "$IMAGE_LINUX" "$ROOT/containers/linux/Containerfile"
 	if [[ ! -f $headers/Makefile ]]; then
 		echo "fetching kernel headers from $host"
@@ -174,15 +188,44 @@ build_zephyr() {
 			# west update checks out the manifest revision and drops local edits.
 			# apply-patches.sh reapplies zephyr/patches/ when that directory
 			# has any.
-			if [[ -d zephyr/upstream/.git || -f zephyr/upstream/.git ]]; then
-				git -C zephyr/upstream checkout -- drivers/spi/spi_omap_mcspi.c || true
-			fi
 			west update
 			zephyr/scripts/apply-patches.sh
 			west build -b pocketbeagle_2/am6254/m4 zephyr/m4 -p always'
 }
 
+# Gather what install-beagle.sh needs into out/pb2-beagle, to copy to the board.
+bundle() {
+	local out=$ROOT/out/pb2-beagle f
+	local files=(
+		linux-app/pb2
+		beagle-linux/scripts/pb2-demo
+		beagle-linux/scripts/install-beagle.sh
+		pru/build/am62x-pru0-fw
+		pru/build/am62x-pru1-fw
+		build/zephyr/pb2_m4.elf
+		beagle-linux/kernel/pru_rproc/pru_rproc.ko
+		beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo
+		beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtbo
+		beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo
+	)
+	for f in "${files[@]}"; do
+		if [[ ! -f $ROOT/$f ]]; then
+			echo "missing $f. Run ./beagle-linux/scripts/build.sh first, and kmod for the .ko." >&2
+			exit 1
+		fi
+	done
+	rm -rf "$out"
+	mkdir -p "$out"
+	for f in "${files[@]}"; do
+		cp -p "$ROOT/$f" "$out/"
+	done
+	echo "bundle in $out"
+	echo "  scp -r out/pb2-beagle USER@BOARD:"
+	echo "  ssh -t USER@BOARD 'sudo ./pb2-beagle/install-beagle.sh && sudo reboot'"
+}
+
 case ${1:-all} in
+	bundle) bundle ;;
 	pru) build_pru ;;
 	kmod) build_kmod ;;
 	linux) build_linux ;;
@@ -193,7 +236,7 @@ case ${1:-all} in
 		build_zephyr
 		;;
 	*)
-		echo "usage: $0 [all|linux|pru|kmod|zephyr]" >&2
+		echo "usage: $0 [all|linux|pru|zephyr|kmod|bundle]" >&2
 		exit 2
 		;;
 esac

@@ -30,6 +30,7 @@ yocto/build/
 yocto/sstate-cache/
 
 # Build products.
+out/
 pru/build/
 linux-app/pb2
 beagle-linux/overlays/*.dtbo
