@@ -217,6 +217,13 @@ ensure_pru_kick() {
 	as_root insmod "$ko"
 }
 
+# tmux refuses to start without a UTF-8 locale. A serial console login is
+# usually LANG=C, so ask for C.UTF-8 unless a UTF-8 locale is already set.
+case ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} in
+*[Uu][Tt][Ff]-8* | *[Uu][Tt][Ff]8*) ;;
+*) export LC_CTYPE=C.UTF-8 ;;
+esac
+
 if [[ $ATTACH -eq 1 ]] && command -v tmux >/dev/null 2>&1 \
 	&& tmux has-session -t "$SESSION" 2>/dev/null; then
 	exec tmux attach -t "$SESSION"
@@ -302,14 +309,18 @@ if [[ -z $ZEPHYR_DEV || -z $PRU0_DEV ]]; then
 fi
 
 as_root chmod a+rw "$ZEPHYR_DEV" "$PRU0_DEV"
-SETCAP=$(command -v setcap || true)
-if [[ -z $SETCAP && -x /usr/sbin/setcap ]]; then
-	SETCAP=/usr/sbin/setcap
-fi
-if [[ -n $SETCAP ]]; then
-	as_root "$SETCAP" cap_sys_rawio+ep "$BIN"
-else
-	echo "setcap is not installed; /dev/mem access may fail" >&2
+# pb2 watch and pb2 chunk read /dev/mem. Root can already; other users get
+# CAP_SYS_RAWIO on the binary.
+if [[ $(id -u) -ne 0 ]]; then
+	SETCAP=$(command -v setcap || true)
+	if [[ -z $SETCAP && -x /usr/sbin/setcap ]]; then
+		SETCAP=/usr/sbin/setcap
+	fi
+	if [[ -n $SETCAP ]]; then
+		as_root "$SETCAP" cap_sys_rawio+ep "$BIN"
+	else
+		echo "setcap is not installed; /dev/mem access may fail" >&2
+	fi
 fi
 as_root chmod 0660 /dev/mem
 
