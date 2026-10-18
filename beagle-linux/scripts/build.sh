@@ -169,6 +169,10 @@ build_kmod() {
 				/tmp/kheaders/scripts/mod/file2alias.c \
 				/tmp/kheaders/scripts/mod/sumversion.c \
 				/tmp/kheaders/scripts/mod/symsearch.c
+			# Clean first. The headers sit at /tmp/kheaders for every kernel
+			# version, so kbuild would otherwise keep a module built for the
+			# previous kernel.
+			make -C /tmp/kheaders M=/work/beagle-linux/kernel/pru_rproc ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- clean
 			make -C /tmp/kheaders M=/work/beagle-linux/kernel/pru_rproc ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules
 			'
 }
