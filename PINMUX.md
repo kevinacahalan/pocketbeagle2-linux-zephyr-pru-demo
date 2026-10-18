@@ -125,19 +125,7 @@ AM62X_MCU_IOPAD(0x0040, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* leftover P
 
 P1.19, P1.21, P1.23, P1.25, P1.27, P2.02, P2.35, and P2.36 are also analog inputs on the expansion table. This overlay muxes the digital ball only.
 
-Build and load, from the repo root:
-
-```
-./beagle-linux/scripts/build.sh linux
-```
-
-That is the one command. It fetches BeagleBoard-DeviceTrees so `ti/k3-pinctrl.h` resolves, then writes `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo` next to the SPI and PRU1 blobs. The Debian image loads overlays from the boot partition. Copy this blob to `/boot/firmware/overlays/` and append it to `fdtoverlays` on the default extlinux label:
-
-```
-fdtoverlays /overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo /overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo
-```
-
-The pad change waits until the next boot. The Yocto image installs the blob under `/lib/firmware` and does not add it to the boot list.
+`./beagle-linux/scripts/build.sh linux` builds this blob next to the SPI and PRU1 blobs. On Debian, `install-beagle.sh` copies all three to `/boot/firmware/overlays/` and adds them to the default extlinux label. The Yocto image selects all three on its default label. The pad change waits until the next boot.
 
 ## Left on the board
 
