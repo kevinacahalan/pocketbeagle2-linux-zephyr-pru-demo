@@ -71,7 +71,8 @@ done
 # The module has to be built for this kernel.
 if ! grep -aq "vermagic=$KREL " "$KO"; then
 	echo "$KO was not built for $KREL." >&2
-	echo "Rebuild it: PB2_KREL=$KREL ./beagle-linux/scripts/build.sh kmod" >&2
+	echo "On the PC: PB2_SSH=USER@BOARD ./beagle-linux/scripts/build.sh kmod && ./beagle-linux/scripts/build.sh bundle," >&2
+	echo "then copy the bundle over and run this again." >&2
 	exit 1
 fi
 
