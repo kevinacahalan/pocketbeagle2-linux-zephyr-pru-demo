@@ -239,7 +239,7 @@ int pb2_spi2_write(const void *buf, size_t len)
 {
 	static const struct spi_config cfg = {
 		.frequency = 1000000,
-		.operation = SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_TRANSFER_MSB,
+		.operation = SPI_OP_MODE_CONTROLLER | SPI_WORD_SET(8) | SPI_TRANSFER_MSB,
 		.peripheral = 0,
 	};
 	const struct device *spi = DEVICE_DT_GET(DT_NODELABEL(main_spi2));

@@ -28,13 +28,21 @@ extern "C" void pb2_erpc_push(const void *data, size_t len)
 	const uint8_t *src = static_cast<const uint8_t *>(data);
 	unsigned int key = irq_lock();
 	size_t space = sizeof(rx_buf) - rx_len;
+	size_t dropped = 0;
 
+	/* Frames are far smaller than rx_buf. Dropping bytes breaks eRPC
+	 * framing, so say so instead of failing silently.
+	 */
 	if (len > space) {
+		dropped = len - space;
 		len = space;
 	}
 	memcpy(rx_buf + rx_len, src, len);
 	rx_len += len;
 	irq_unlock(key);
+	if (dropped) {
+		LOG_ERR("rpmsg rx buffer full, dropped %u bytes", (unsigned int)dropped);
+	}
 	k_sem_give(&rx_sem);
 }
 

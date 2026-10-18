@@ -68,7 +68,7 @@ char *spiWrite(const char *text)
 		return NULL;
 	}
 	if (ret) {
-		snprintf(out, 64, "zephyr: spi wrote 0 bytes");
+		snprintf(out, 64, "zephyr: spi write failed (%d)", ret);
 		LOG_ERR("erpc spi fail %d", ret);
 		return out;
 	}
