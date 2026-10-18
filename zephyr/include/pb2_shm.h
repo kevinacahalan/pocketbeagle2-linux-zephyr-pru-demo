@@ -49,7 +49,8 @@
  * PRU1 shifts each SLIP byte out as UART 8N1 on R30 bit 5.
  * Header P1.20, ball Y24, pad offset 0x00cc, mux mode 2 (PR0_PRU1_GPO5).
  * On the BeagleBoard Debian image the PRUSS core clock is 250 MHz.
- * 250000000 / 115200 is 2170 cycles per bit (about 115207 baud).
+ * 250000000 / 115200 is 2170 cycles per bit. slip_tx.asm delays that long
+ * per bit, plus a few cycles of loop overhead (about 0.3% slow).
  */
 #define PB2_XY_TX_BIT         5u
 #define PB2_PRU_HZ            250000000u
