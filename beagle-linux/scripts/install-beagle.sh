@@ -11,7 +11,7 @@
 #   - the three overlays on the default extlinux label
 #   - a udev rule that makes /dev/rpmsg* usable by the dialout group
 #   - pb2-pru.service, which starts PRU0 and PRU1 at boot
-# The M4 is not touched. It starts from /lib/firmware at boot.
+# The kernel also boots the M4 from /lib/firmware at boot; pb2-demo restarts it.
 #
 # Artifacts come from dir when it is given (flat, by file name), else from
 # the directory this script is in when it is a bundle, else from the build

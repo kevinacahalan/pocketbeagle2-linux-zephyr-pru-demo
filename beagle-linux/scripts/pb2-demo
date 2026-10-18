@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Run the PocketBeagle 2 demo on the board. This does not start at boot.
 #
-#   pb2-demo                 (re)start PRU0 and PRU1, start the M4 if it is
-#                            stopped, then one merged console
+#   pb2-demo                 (re)start the M4, PRU0, and PRU1 with their
+#                            firmware, then one merged console
 #   pb2-demo --tmux          same start, in tmux session pb2 (four windows)
 #   pb2-demo --attach        do not stop or start any core
 #   pb2-demo --attach --tmux attach to session pb2, or open it without a restart
@@ -23,9 +23,9 @@ usage() {
 	cat <<'EOF'
 usage: pb2-demo [--tmux] [--attach]
 
-  (default)  Restart PRU0 and PRU1. Start the M4 if it is stopped; a
-             running M4 is left alone. Then print one console. Each line
-             is prefixed [Linux], [M4], [PRU0], or [PRU1].
+  (default)  Restart the M4, PRU0, and PRU1 with their firmware. Then
+             print one console. Each line is prefixed [Linux], [M4],
+             [PRU0], or [PRU1].
   --tmux     Same start, in tmux session pb2. Windows: linux, zephyr,
              pru0, pru1.
   --attach   Do not stop or start any core. Connect to what is already
@@ -136,19 +136,18 @@ load_fw() {
 		exit 1
 	fi
 	dest=/lib/firmware/$fwname
-	# Stopping an M4 the kernel started times out (EBUSY) and drops its
-	# RPMsg channel, so a running M4 is left alone. A new ELF still goes to
-	# /lib/firmware, where the kernel loads it on the next boot.
-	if [[ $name == "$M4_NAME" ]]; then
-		rproc=$(rproc_by_name "$name")
-		state=$(cat "$rproc/state")
-		if [[ $state == running ]]; then
-			if ! cmp -s "$src" "$dest"; then
-				as_root cp "$src" "$dest"
-				echo "$name is running the old firmware. Installed $src; reboot to load it."
-			fi
-			return 0
+	# A core U-Boot started before Linux shows up as "attached". Linux did
+	# not load it, and stopping it from there is not tested, so leave it.
+	# A "running" core (started by Linux, at boot or by this script) is
+	# stopped and started again with the new firmware like the PRUs.
+	rproc=$(rproc_by_name "$name")
+	state=$(cat "$rproc/state")
+	if [[ $state == attached ]]; then
+		if ! cmp -s "$src" "$dest"; then
+			as_root cp "$src" "$dest"
 		fi
+		echo "$name was started by U-Boot (attached). Leaving it; $fwname loads on the next boot."
+		return 0
 	fi
 	stop_core "$name"
 	rproc=$(rproc_by_name "$name")
@@ -293,8 +292,8 @@ if [[ -z $ZEPHYR_DEV || -z $PRU0_DEV ]]; then
 	echo "m4=${ZEPHYR_DEV:-missing} pru0=${PRU0_DEV:-missing}" >&2
 	if [[ -z $ZEPHYR_DEV ]]; then
 		state=$(cat "$(rproc_by_name "$M4_NAME")/state" 2>/dev/null || true)
-		if [[ $state == running ]]; then
-			echo "$M4_NAME is running but its RPMsg channel is not there. Not stopping it." >&2
+		if [[ $state == running || $state == attached ]]; then
+			echo "$M4_NAME is $state but its RPMsg channel is not there. Is ${M4_FW:-its firmware} a Zephyr image with RPMsg?" >&2
 		fi
 	fi
 	exit 1

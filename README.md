@@ -65,7 +65,7 @@ It runs on either of two card images:
    - It adds a udev rule so the `dialout` group can use `/dev/rpmsg*`.
    - It enables `pb2-pru.service`, which starts both PRUs at boot.
 
-   It leaves the M4 alone, because the kernel already starts it at boot from `/lib/firmware/am62-mcu-m4f0_0-fw`. Run the script again after rebuilding. Also run it again after a kernel upgrade: the module only fits the kernel it was built for.
+   The kernel boots the M4 from `/lib/firmware/am62-mcu-m4f0_0-fw` at startup, and `pb2-demo` restarts it with the current image each time it runs. Run the script again after rebuilding. Also run it again after a kernel upgrade: the module only fits the kernel it was built for.
 
 4. **Run the demo** on the board:
 
@@ -164,7 +164,7 @@ Type these in the linux window:
 | `spi [device]` | Linux writes `hello` on SPI0 (header P2), `/dev/spidev0.0` by default |
 | `help`, `quit` | List the commands, or leave |
 
-`pb2-demo` without `--tmux` prints all four windows on one console instead, with each line prefixed `[Linux]`, `[M4]`, `[PRU0]`, or `[PRU1]`. On a stopped board it starts any core that isn't running. It always leaves a running M4 alone: stopping an M4 that the kernel started hangs in `k3_rproc_stop` (EBUSY), and only a power cycle recovers it.
+`pb2-demo` without `--tmux` prints all four windows on one console instead, with each line prefixed `[Linux]`, `[M4]`, `[PRU0]`, or `[PRU1]`. Either way it restarts the M4, PRU0, and PRU1 with their firmware first. `--attach` connects to the running cores without restarting them.
 
 ## Probe the pins
 
@@ -281,7 +281,6 @@ The full pin list is `PINMUX.md`.
 - **Don't run `west init -l .` from the repo root.** That puts the workspace in the parent directory. The script runs `west init -l zephyr` instead.
 - **`kmod` fails to copy `/usr/src/linux-headers-...`.** The BeagleBoard image ships the headers for its kernel. If yours doesn't have them, run `sudo apt install linux-headers-$(uname -r)` on the board.
 - **The PRU0 window never appears, and `dmesg` says `.kick method not defined`.** The stock `pru_rproc` is loaded. This is usually after a kernel upgrade. Rebuild with `build.sh kmod`, run `bundle`, and install again.
-- **Changes to the M4 image don't show up.** `pb2-demo` won't restart a running M4. It copies the new ELF to `/lib/firmware`, and the new image loads on the next reboot.
 
 ## Repository
 
