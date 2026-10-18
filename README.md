@@ -233,7 +233,7 @@ All signals are 3.3 V. On a Saleae Logic, choose the 1.8 V threshold setting for
 | Linux SPI0 | P2.31 CS, P2.29 CLK, P2.27 MISO, P2.25 MOSI | `hello` at 1 MHz, mode 0, MSB first |
 | PRU1 UART | P1.20 | one SLIP frame per X/Y, 115200 8N1, idles high |
 
-For `xy 41 83`, P1.20 carries `C0 29 00 00 00 53 00 00 00 7A C0`. [PRU1](#pru1-the-slip-frame-on-p120) explains the frame.
+For `xy 41 83`, P1.20 carries `C0 29 00 00 00 53 00 00 00 7A C0`. [PRU1](#pru1-the-slip-frame-on-p120) explains the frame. `PINMUX.md` lists every pin the demo muxes, plus the shorted partner balls it holds off.
 
 This is what a passing `pb2-demo` startup looks like, captured from the board: `hello` on SPI2, then the X/Y frame on P1.20. The bytes are decoded from the captured edges.
 
@@ -241,7 +241,7 @@ This is what a passing `pb2-demo` startup looks like, captured from the board: `
 
 The test bench: the PocketBeagle 2 (black), a Raspberry Pi Debug Probe on its UART for the serial console (left), the Saleae probes on header P1, and an SDWire3 in the microSD slot (teal, right) so the PC can reflash the card. To run the demo you only need the board, a microSD card, and the USB-C cable to the PC.
 
-![The PocketBeagle 2 with a Debug Probe on its UART and Saleae probes on header P1](media/bench-wiring.jpg) `PINMUX.md` lists every pin the demo muxes, plus the shorted partner balls it holds off.
+![The PocketBeagle 2 with a Debug Probe on its UART and Saleae probes on header P1](media/bench-wiring.jpg)
 
 ## How it works
 
