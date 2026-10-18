@@ -32,7 +32,7 @@ all: pb2
 pb2: pb2.o $(ERPC_SRCS)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDES) -o $@ pb2.o $(ERPC_SRCS)
 
-pb2.o: pb2.c pb2_erpc_linux.h
+pb2.o: pb2.c pb2_erpc_linux.h $(ROOT)/zephyr/include/pb2_shm.h
 	$(CC) $(CFLAGS) -I. -I$(ROOT)/zephyr/include -c -o $@ pb2.c
 
 clean:
