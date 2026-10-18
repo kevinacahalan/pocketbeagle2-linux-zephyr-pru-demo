@@ -27,6 +27,7 @@
 │   ├── downloads/         generated
 │   ├── build/             generated
 │   └── sstate-cache/      generated
+├── media/               README images
 ├── containers/
 │   ├── linux/
 │   ├── pru-cgt/
