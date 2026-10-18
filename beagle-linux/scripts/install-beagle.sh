@@ -11,7 +11,8 @@
 #   - the three overlays on the default extlinux label
 #   - a udev rule that makes /dev/rpmsg* usable by the dialout group
 #   - pb2-pru.service, which starts PRU0 and PRU1 at boot
-# The kernel also boots the M4 from /lib/firmware at boot; pb2-demo restarts it.
+# The M4 image is installed as /lib/firmware/pb2_m4.elf, not under the kernel's
+# default name am62-mcu-m4f0_0-fw, so the M4 stays off until pb2-demo starts it.
 #
 # Artifacts come from dir when it is given (flat, by file name), else from
 # the directory this script is in when it is a bundle, else from the build
@@ -93,7 +94,13 @@ install -m 0755 "$PB2" /usr/bin/pb2
 install -m 0755 "$DEMO" /usr/bin/pb2-demo
 install -m 0644 "$PRU0" /lib/firmware/am62x-pru0-fw
 install -m 0644 "$PRU1" /lib/firmware/am62x-pru1-fw
-install -m 0644 "$M4" /lib/firmware/am62-mcu-m4f0_0-fw
+install -m 0644 "$M4" /lib/firmware/pb2_m4.elf
+# The kernel boots whatever has the default M4 name. The Debian image ships
+# none, so a file there is from an older install of this demo: move it aside.
+if [[ -e /lib/firmware/am62-mcu-m4f0_0-fw ]]; then
+	mv /lib/firmware/am62-mcu-m4f0_0-fw /lib/firmware/am62-mcu-m4f0_0-fw.pb2-old
+	echo "moved /lib/firmware/am62-mcu-m4f0_0-fw to am62-mcu-m4f0_0-fw.pb2-old so the M4 does not start at boot"
+fi
 if command -v setcap >/dev/null 2>&1 || [[ -x /usr/sbin/setcap ]]; then
 	"$(command -v setcap || echo /usr/sbin/setcap)" cap_sys_rawio+ep /usr/bin/pb2
 fi

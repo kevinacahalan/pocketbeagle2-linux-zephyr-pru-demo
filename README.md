@@ -65,7 +65,7 @@ It runs on either of two card images:
    - It adds a udev rule so the `dialout` group can use `/dev/rpmsg*`.
    - It enables `pb2-pru.service`, which starts both PRUs at boot.
 
-   The kernel boots the M4 from `/lib/firmware/am62-mcu-m4f0_0-fw` at startup, and `pb2-demo` restarts it with the current image each time it runs. Run the script again after rebuilding. Also run it again after a kernel upgrade: the module only fits the kernel it was built for.
+   The M4 image goes in as `/lib/firmware/pb2_m4.elf`, not under the kernel's default name `am62-mcu-m4f0_0-fw`, so the M4 stays off at boot until `pb2-demo` starts it. `pb2-demo` restarts it with the current image each time it runs. Run the script again after rebuilding. Also run it again after a kernel upgrade: the module only fits the kernel it was built for.
 
 4. **Run the demo** on the board:
 
@@ -102,7 +102,7 @@ Then:
 ./pb2-demo --tmux
 ```
 
-`/root` holds `pb2`, `pb2-demo`, `pb2_m4.elf`, and both PRU images. The same files are also on `PATH` and in `/lib/firmware`. The TI kernel in this image already has the PRU virtio kick, so no extra driver is needed.
+`/root` holds `pb2`, `pb2-demo`, `pb2_m4.elf`, and both PRU images. The same files are also on `PATH` and in `/lib/firmware`. As on Debian, the M4 image isn't under the default name, so the M4 stays off until `pb2-demo` starts it. The TI kernel in this image already has the PRU virtio kick, so no extra driver is needed.
 
 ## What you should see
 
@@ -279,6 +279,7 @@ The full pin list is `PINMUX.md`.
   - docker: `sudo rm -rf` the same paths
 - **Zephyr build fails with `Not a file: .../pristine.cmake`.** `build/` is from before a directory move. Delete `build/` and build again.
 - **Don't run `west init -l .` from the repo root.** That puts the workspace in the parent directory. The script runs `west init -l zephyr` instead.
+- **`dmesg` shows `Direct firmware load for am62-mcu-m4f0_0-fw failed with error -2` at boot.** That is expected. The kernel tries to boot the M4 under its default name, finds nothing, and leaves it off. `pb2-demo` starts it with `pb2_m4.elf`.
 - **`kmod` fails to copy `/usr/src/linux-headers-...`.** The BeagleBoard image ships the headers for its kernel. If yours doesn't have them, run `sudo apt install linux-headers-$(uname -r)` on the board.
 - **The PRU0 window never appears, and `dmesg` says `.kick method not defined`.** The stock `pru_rproc` is loaded. This is usually after a kernel upgrade. Rebuild with `build.sh kmod`, run `bundle`, and install again.
 
