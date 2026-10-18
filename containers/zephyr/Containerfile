@@ -1,12 +1,54 @@
-# Zephyr SDK image for the M4 firmware.
-# ghcr.io/zephyrproject-rtos/ci carries West and the SDK. The image is pinned
-# by digest: :latest moves to new SDK releases, and the path below would then
-# break. This digest is the main-branch image of 30 Jul 2026 with SDK 1.0.1.
-FROM ghcr.io/zephyrproject-rtos/ci@sha256:0ec712148f29c9246c0b09a00a6f30a1ebd58c03e0976547ea14486a4e5e316b
+# Zephyr build image for the M4 firmware.
+# Debian 13 with west, Zephyr's base Python requirements, and the Zephyr SDK
+# 1.0.1 minimal bundle plus only the arm-zephyr-eabi toolchain. That is about
+# 2 GB, where the Zephyr CI image is close to 40 GB. The Yocto recipe
+# (pb2-m4-fw) uses the same two SDK archives, pinned by the same hashes.
+FROM docker.io/library/debian:13
 
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends \
+		ca-certificates \
+		cmake \
+		device-tree-compiler \
+		file \
+		git \
+		gperf \
+		make \
+		ninja-build \
+		python3 \
+		python3-venv \
+		wget \
+		xz-utils \
+	&& rm -rf /var/lib/apt/lists/*
+
+ARG SDK_URL=https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1
+RUN mkdir -p /opt/toolchains \
+	&& cd /opt/toolchains \
+	&& wget -q $SDK_URL/zephyr-sdk-1.0.1_linux-x86_64_minimal.tar.xz \
+	&& wget -q $SDK_URL/toolchain_gnu_linux-x86_64_arm-zephyr-eabi.tar.xz \
+	&& printf '%s\n' \
+		'ca9bc0ff66fafca1dac9d592a36d953cf16d096a9d09b1c0357f021cf9f6a7eb  zephyr-sdk-1.0.1_linux-x86_64_minimal.tar.xz' \
+		'21b85981cb5a1818d9bc53d82af80f208946ec038b982ff1907287572ed3a634  toolchain_gnu_linux-x86_64_arm-zephyr-eabi.tar.xz' \
+		| sha256sum -c - \
+	&& tar xf zephyr-sdk-1.0.1_linux-x86_64_minimal.tar.xz \
+	&& mkdir -p zephyr-sdk-1.0.1/gnu \
+	&& tar xf toolchain_gnu_linux-x86_64_arm-zephyr-eabi.tar.xz -C zephyr-sdk-1.0.1/gnu \
+	&& rm -f *.tar.xz \
+	&& test -x zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc
+
+# West, then Zephyr's base requirements for the commit zephyr/west.yml pins.
+ARG ZEPHYR_REV=e35b686be50a224e381fd35174be9fcb1a4ddd37
+RUN python3 -m venv /opt/venv \
+	&& /opt/venv/bin/pip install --no-cache-dir west==1.5.0 \
+	&& wget -q -O /tmp/req.txt \
+		https://raw.githubusercontent.com/zephyrproject-rtos/zephyr/$ZEPHYR_REV/scripts/requirements-base.txt \
+	&& /opt/venv/bin/pip install --no-cache-dir -r /tmp/req.txt \
+	&& rm -f /tmp/req.txt
+
+ENV PATH=/opt/venv/bin:$PATH
 ENV ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1
-
-RUN test -x /opt/python/venv/bin/west \
-	&& test -d /opt/toolchains/zephyr-sdk-1.0.1
+ENV ZEPHYR_TOOLCHAIN_VARIANT=zephyr
 
 WORKDIR /work

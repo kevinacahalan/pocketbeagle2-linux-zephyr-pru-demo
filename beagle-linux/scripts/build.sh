@@ -183,8 +183,7 @@ build_zephyr() {
 	engine_run \
 		-v "$ROOT:/work" -w /work \
 		"$IMAGE_ZEPHYR" \
-		bash -lc 'set -euo pipefail
-			export ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1
+		bash -c 'set -euo pipefail
 			git config --global --add safe.directory "*"
 			if [[ ! -d .west ]]; then
 				west init -l zephyr
