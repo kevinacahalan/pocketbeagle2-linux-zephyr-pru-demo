@@ -4,6 +4,7 @@
 .
 ├── README.md
 ├── PINMUX.md
+├── LICENSE
 ├── linux-app/
 ├── beagle-linux/
 │   ├── overlays/
@@ -36,6 +37,7 @@
 ├── tools/                 generated
 ├── build/                 generated
 ├── third_party/           generated
+├── out/                   generated
 └── .cache/                generated
 ```
 
@@ -43,9 +45,11 @@
 
 `PINMUX.md` — header pins and which core owns them.
 
+`LICENSE` — MIT, plus the files that keep their own license.
+
 `linux-app/` — the `pb2` userspace program. `linux-app/pb2` is a build product.
 
-`beagle-linux/` — Debian overlays, the patched `pru_rproc` module, and the on-target runner.
+`beagle-linux/` — Debian overlays, the patched `pru_rproc` module, the build script, and the on-board scripts.
 
 `beagle-linux/overlays/` — Linux device-tree overlays. The `.dtbo` blobs are build products.
 
@@ -53,7 +57,7 @@
 
 `beagle-linux/scripts/` — `build.sh` compiles in the containers; `pb2-demo` starts the demo on the board; `install-beagle.sh` sets up the Debian image once, so a reboot needs no manual steps.
 
-`zephyr/` — M4 app, shared mailbox header, eRPC shim, and the west manifest.
+`zephyr/` — M4 app, the shared-memory header every core includes (`include/pb2_shm.h`), the eRPC interface (`erpc/pb2.erpc`) and its generated code (`erpc/shim/`), and the west manifest.
 
 `zephyr/m4/` — Zephyr app, board `pocketbeagle_2/am6254/m4`.
 
@@ -74,3 +78,5 @@
 `containers/` — Containerfiles for the Linux, PRU, and Zephyr build images.
 
 `third_party/` — generated checkouts used by the build. Not vendored.
+
+`out/pb2-beagle/` — `build.sh bundle` output, copied to a Debian board and installed with its `install-beagle.sh`.

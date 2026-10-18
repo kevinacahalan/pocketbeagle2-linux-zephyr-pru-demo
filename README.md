@@ -1,8 +1,11 @@
-# PocketBeagle 2: Linux, Zephyr, and PRU
+# PocketBeagle 2: Linux, Zephyr, and PRU together
 
-Linux on the A53s calls Zephyr functions over eRPC on the existing RPMsg channel, and commands PRU0 over RPMsg. PRU0 is the transfer core: it arms PRU1 in PRU shared RAM, and it also writes a 32-bit X and a 32-bit Y there. PRU1 does not use RPMsg. It runs a cycle-counted loop, samples the arm block once per period, and when the X/Y sequence changes it shifts that pair out on a header pin. Linux hands Zephyr bulk chunks through a separate DDR region (`zephyr/include/pb2_shm.h`).
+A starting point for PocketBeagle 2 (TI AM6254) projects that use every core:
 
-pb2 commands Zephyr and PRU0, Zephyr passes arm and X/Y in the mailbox, and PRU0 writes the shared RAM window PRU1 samples.
+- **Linux** on the Cortex-A53s runs `pb2`, one program that drives the demo.
+- **Zephyr** on the Cortex-M4F answers function calls from Linux (eRPC over RPMsg) and writes SPI.
+- **PRU0** takes commands from Linux (RPMsg) and from Zephyr (a shared DDR mailbox).
+- **PRU1** runs a cycle-counted loop and bit-bangs a UART frame on a header pin.
 
 ```mermaid
 flowchart LR
@@ -11,48 +14,70 @@ flowchart LR
   pru0["PRU0"]
   pru1["PRU1"]
   pb2 <-->|"RPMsg eRPC"| m4
-  pb2 -->|"DDR chunk"| m4
+  pb2 -->|"DDR bulk buffer"| m4
   pb2 <-->|"RPMsg text"| pru0
   m4 -->|"DDR mailbox"| pru0
-  pru0 -->|"shared RAM"| pru1
+  pru0 -->|"PRU shared RAM"| pru1
   pru1 -->|"Linux reads shared RAM"| pb2
 ```
 
-Host compiles run in containers. `LAYOUT.md` is the directory map.
+Each link is small and easy to copy into your own project. [How it works](#how-it-works) walks through them.
 
-## Getting started
+It runs on either of two card images:
 
-From the repo root, this builds userspace, PRU firmware, and the M4 ELF:
+- **BeagleBoard Debian.** The stock image, plus a one-time install script.
+- **Yocto (Poky).** Built from `yocto/`, with the demo already installed.
 
-```
-./beagle-linux/scripts/build.sh
-```
+## What you need
 
-[Build](#build) is that script, one target at a time. Do not use a compiler installed on the host.
+- A PocketBeagle 2 and a microSD card.
+- A Linux PC with `git` and either `podman` or `docker`. Every compiler runs in a container, so you don't install any toolchains.
+- Network access from the PC to GitHub, git.ti.com, and software-dl.ti.com.
+- Optional: a logic analyzer, to watch SPI and the PRU1 UART on the header pins ([Probe the pins](#probe-the-pins)).
 
-The Debian image is <https://www.beagleboard.org/distros/pocketbeagle-2-debian-13-7-2026-10-09-iot-v6-18-x-k3>, file `pocketbeagle2-debian-13.7-iot-v6.18-k3-arm64-2026-10-09-10gb.img.xz`.
+## Quick start: BeagleBoard Debian
 
-The Yocto card image is `yocto/build/deploy-ti/images/pocketbeagle2/pb2-demo-image-pocketbeagle2.rootfs.wic.xz`.
+1. **Flash the image.** Use [PocketBeagle 2 Debian 13.7 IoT, v6.18 k3](https://www.beagleboard.org/distros/pocketbeagle-2-debian-13-7-2026-10-09-iot-v6-18-x-k3), file `pocketbeagle2-debian-13.7-iot-v6.18-k3-arm64-2026-10-09-10gb.img.xz`. Boot it and make sure you can `ssh` in. Below, `USER@BOARD` is that login.
 
-### BeagleBoard Debian
+2. **Build on the PC**, from the repo root:
 
-The Debian image still needs this demo installed. Put `linux-app/pb2` and `beagle-linux/scripts/pb2-demo` on `PATH`. Put `pru/build/am62x-pru0-fw` and `pru/build/am62x-pru1-fw` at `/lib/firmware/am62x-pru0-fw` and `/lib/firmware/am62x-pru1-fw`. Put `build/zephyr/pb2_m4.elf` at `/lib/firmware/am62-mcu-m4f0_0-fw`. Put `beagle-linux/kernel/pru_rproc/pru_rproc.ko` at `/usr/lib/pru_rproc.ko`; the stock module has no virtio kick. Put the three overlay blobs in `/boot/firmware/overlays/`. On the default label in `/boot/firmware/extlinux/extlinux.conf`, set:
+   ```
+   ./beagle-linux/scripts/build.sh
+   PB2_SSH=USER@BOARD ./beagle-linux/scripts/build.sh kmod
+   ./beagle-linux/scripts/build.sh bundle
+   ```
 
-```
-fdtoverlays /overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo /overlays/k3-am62-pocketbeagle2-pru1-xy.dtbo /overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo
-```
+   - The first command builds `pb2`, the overlays, both PRU images, and the Zephyr M4 image. The first run downloads a lot. Later runs are quick.
+   - `kmod` builds the patched PRU driver for the kernel running on your board. It copies that kernel's headers from the board once. [Why a patched driver](#why-debian-needs-a-patched-pru-driver) explains the reason.
+   - `bundle` gathers everything into `out/pb2-beagle/`.
 
-The pads do not change until the next boot. Install `tmux` if `pb2-demo --tmux` is missing. The image requests DHCP on `usb0`. Start the demo with the module you installed:
+3. **Install on the board and reboot:**
 
-```
-sudo PB2_PRU_KO=/usr/lib/pru_rproc.ko pb2-demo
-```
+   ```
+   scp -r out/pb2-beagle USER@BOARD:
+   ssh -t USER@BOARD 'sudo ./pb2-beagle/install-beagle.sh && sudo reboot'
+   ```
 
-`pb2-demo` stops and starts the M4, PRU0, and PRU1.
+   `install-beagle.sh` makes the setup survive reboots:
+   - It installs `pb2`, `pb2-demo`, and the firmware.
+   - It installs the patched `pru_rproc` module so the kernel loads it at boot.
+   - It adds the three overlays to the default boot entry. The original is saved as `extlinux.conf.pb2-bak`.
+   - It adds a udev rule so the `dialout` group can use `/dev/rpmsg*`.
+   - It enables `pb2-pru.service`, which starts both PRUs at boot.
 
-### Yocto
+   It leaves the M4 alone, because the kernel already starts it at boot from `/lib/firmware/am62-mcu-m4f0_0-fw`. Run the script again after rebuilding. Also run it again after a kernel upgrade: the module only fits the kernel it was built for.
 
-From the repo root, fetch kas-container and build `pb2-demo-image`. Podman and docker both work. Set `KAS_CONTAINER_ENGINE` to `podman` or `docker`. Unset, kas-container uses docker when that client is installed, and otherwise podman.
+4. **Run the demo** on the board:
+
+   ```
+   pb2-demo --tmux
+   ```
+
+   You get a tmux session with four windows. Switch windows with Ctrl+b then 0–3. Detach with Ctrl+b then d. Come back with `pb2-demo --attach --tmux`. [What you should see](#what-you-should-see) shows the output to expect.
+
+## Quick start: Yocto image
+
+Build the card image on the PC, from the repo root:
 
 ```
 wget -O kas-container https://raw.githubusercontent.com/siemens/kas/5.5/kas-container
@@ -60,303 +85,208 @@ chmod +x kas-container
 KAS_BUILD_DIR=yocto/build ./kas-container build yocto/kas/pb2-poky.yml
 ```
 
-The machine, kernel, and layers come from TI's `kas/poky-wrynose-config.yml`. The distro is poky. The target is `pb2-demo-image` (core-image-minimal plus this demo). The build compiles `pb2`, the Zephyr M4 ELF, and both PRU firmwares. Downloads and shared state stay under `yocto/` and are not committed.
+- The machine, kernel, and layers come from TI's `kas/poky-wrynose-config.yml`, and the distro is Poky.
+- The image builds `pb2`, the M4 image, both PRU images, and the overlays itself. You don't need `build.sh` for it.
+- Set `KAS_CONTAINER_ENGINE` to `podman` or `docker` if you need to choose one.
 
-`pb2-demo-image` uses systemd. It already contains `/usr/bin/pb2` and `/usr/bin/pb2-demo`. `pb2-demo` is on `PATH`. The serial console is `ttyS2` at 115200. Login is root, home `/root`. The image does not add another account and does not set a password. `/root` holds `README.md`, `pb2`, `pb2-demo`, `pb2_m4.elf`, `am62x-pru0-fw`, and `am62x-pru1-fw`. From that directory, `./pb2-demo` starts the demo. The M4 ELF is `/lib/firmware/am62-mcu-m4f0_0-fw`. The PRU firmwares are `/lib/firmware/am62x-pru0-fw` and `/lib/firmware/am62x-pru1-fw`. U-Boot loads that M4 ELF when it is present. The default extlinux label selects the three overlay blobs, so SPI0 and P1.20 take the demo mux on the next boot. USB comes up as the Beagle NCM gadget on `usb0` and the ACM serial gadget (`serial-getty@ttyGS0.service`).
+Flash the timestamped file `yocto/build/deploy-ti/images/pocketbeagle2/pb2-demo-image-pocketbeagle2.rootfs-<timestamp>.wic.xz`. BeagleBoard Imager ignores the `.wic.xz` symlink next to it.
 
-## Build
+To log in:
+- The serial console is `ttyS2` at 115200.
+- USB brings up an NCM network gadget on `usb0` and a serial gadget.
+- The login is `root` with no password, and there is no other account.
 
-Have these in hand: this repo, git, podman or docker, and a network path to GitHub, git.ti.com, and the Zephyr project. The script is `beagle-linux/scripts/build.sh`. It builds the Containerfiles under `containers/`, then compiles inside those images. Do not use a compiler installed on the host. Podman and docker both work. Set `PB2_CONTAINER_ENGINE` to `podman` or `docker`. Unset, the script uses podman when that is installed, and otherwise docker.
-
-From the repo root, this builds userspace, PRU firmware, and Zephyr, in that order:
-
-```
-./beagle-linux/scripts/build.sh
-```
-
-The kernel module is `./beagle-linux/scripts/build.sh kmod` and needs the Debian board. The Poky image is the kas-container build in [Getting started](#getting-started).
-
-1. Linux userspace and the Debian overlays. Image `pb2-linux-userspace` from `containers/linux/Containerfile` (Debian 13, the aarch64 cross compiler, and `dtc`). The script clones EmbeddedRPC 1.14.0 into `third_party/erpc` if it is missing, and BeagleBoard-DeviceTrees `v6.18.x` commit `550f7711a4696d5f5e92505289379b754e871313` into `third_party/BeagleBoard-DeviceTrees`.
-
-   ```
-   ./beagle-linux/scripts/build.sh linux
-   ```
-
-   Output: `linux-app/pb2`, plus `beagle-linux/overlays/*.dtbo`. `pb2` is the program `pb2-demo` starts. `spi` is its Linux SPI hello, next to xy, arm, chunk, and say. `PINMUX.md` lists every pin the overlays mux.
-
-2. PRU firmware. Image `pb2-pru-cgt` from `containers/pru-cgt/Containerfile`. The first stage installs TI CGT 2.3.3 on Debian 10, because the installer is a 32-bit stub that needs that older glibc. The second stage is Debian 13 with `clpru` at `/opt/ti-cgt-pru`.
-
-   ```
-   ./beagle-linux/scripts/build.sh pru
-   ```
-
-   PRU0, the transfer core, is `pru/pru0/` (`main.c` and `AM62x_PRU0.cmd`). PRU1, the SLIP frame, is `pru/pru1/`: the sample loop is `main.c`, the pin shifting is `slip_tx.asm`, and the linker script is `AM62x_PRU1.cmd`. Output: `pru/build/am62x-pru0-fw` and `pru/build/am62x-pru1-fw`.
-
-3. Zephyr on the M4. Image `pb2-zephyr-sdk` from `containers/zephyr/Containerfile`, the Zephyr CI image with `ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-1.0.1`. When `.west/` is missing, the container runs `west init -l zephyr` from the repo root, then `west update`, `zephyr/scripts/apply-patches.sh`, and `west build -b pocketbeagle_2/am6254/m4 zephyr/m4`. `west update` checks out the commit in `zephyr/west.yml` into `zephyr/upstream` and drops local edits there. `zephyr/patches/` is empty: that `main` commit already releases the hardware chip select, so an active-low SPIEN idles high without a local patch.
-
-   ```
-   ./beagle-linux/scripts/build.sh zephyr
-   ```
-
-   Output: `build/zephyr/pb2_m4.elf`.
-
-4. Patched `pru_rproc`, only for the Debian image. The stock module has no virtio kick, so PRU0's RPMsg firmware will not boot until this module is loaded. The script rsyncs `/usr/src/linux-headers-$PB2_KREL` from `$PB2_SSH` into `.cache/` once, then cross-compiles in the Linux image.
-
-   ```
-   ./beagle-linux/scripts/build.sh kmod
-   ```
-
-   Output: `beagle-linux/kernel/pru_rproc/pru_rproc.ko`. `PB2_SSH` is the Debian login you chose, and `PB2_KREL` must be `uname -r` on that board.
-
-### Common problems
-
-- **No podman or docker.** Install one of them. `build.sh` runs under either: set `PB2_CONTAINER_ENGINE` to `podman` or `docker`. kas-container takes `KAS_CONTAINER_ENGINE` set to `podman` or `docker`.
-- **West checkout.** Do not run `west init -l .` from the repo root. That looks for `west.yml` in the repo root and puts the workspace in the parent directory. The script uses `west init -l zephyr`, which keeps the workspace at the repo root and checks Zephyr out at `zephyr/upstream`. If an old `.west/` points somewhere else, remove it and run the Zephyr build again. `west update` resets `zephyr/upstream` to the pinned commit.
-- **Zephyr pin.** `zephyr/west.yml` sets `revision` to a commit hash and `path` to `zephyr/upstream`. The comment on the revision says the hash is Zephyr `main` on 11 Oct 2026. The revision is not a branch name and not a tag. `west update` has to fetch that commit from `zephyrproject-rtos/zephyr`.
-- **Overlay headers.** `ti/k3-pinctrl.h` is not in this repository. `./beagle-linux/scripts/build.sh linux` clones BeagleBoard-DeviceTrees commit `550f7711a4696d5f5e92505289379b754e871313` into `third_party/BeagleBoard-DeviceTrees` and preprocesses the overlays with it. If that clone fails, the `.dtbo` files are not produced.
-
-### Zephyr devicetree overlay
-
-`zephyr/m4/boards/pocketbeagle_2_am6254_m4.overlay` is a Zephyr devicetree overlay, not a Linux overlay for the Debian kernel. `west build` picks it up by board name (`pocketbeagle_2/am6254/m4`) and compiles it into `pb2_m4.elf`. It shrinks the M4 DDR region so two ranges stay outside the Zephyr image: a 64 KiB bulk buffer at `0x9d9ef000` and the 4 KiB mailbox at `0x9d9ff000`. There is no loadable ELF section at either address.
-
-On the Debian image the overlay is not applied with `dtbo`, configfs, or a reboot. `pb2-demo` copies the ELF to `/lib/firmware/am62-mcu-m4f0_0-fw` and starts remoteproc `5000000.m4fss`. That boot is what brings the overlay's memory map up. The script does not run at boot.
-
-The same overlay also muxes main SPI2 and, once that ELF is running, `main()` clocks the five bytes `hello` at 1 MHz, mode 0, 8-bit MSB. D1 is MOSI and D0 is MISO. That pinmux is inside `pb2_m4.elf`. It is not a Debian dtbo. The M4 console UART is unwired, so the result is also written to the DDR mailbox: `spi hello ok` after the transfer returns, or `spi hello not ready` / `spi hello fail <errno>` if it does not.
-
-That main pinmux is a bare `pinctrl@f4000`. The M4 does not unlock the `ti,control-module` syscon at `0xf0000`. The Debian kernel does, and that is why CLK and MOSI can toggle.
-
-## SPI hello
-
-Linux and Zephyr use different controllers. Linux uses main SPI0 (`0x20100000`). Zephyr uses main SPI2 (`0x20120000`). Mode 0 on the SPI0 balls and mode 1 on the SPI2 balls are the SPI functions. The PRU GPO/GPI modes on those balls are other mux values and are not selected. The M4 console is MCU UART0 on P2.05A (ball B5) and P2.07A (ball A5); those pads are not in either overlay. RPMsg does not use header pins.
-
-MCU SPI0 (`0x04b00000`) is not used. The cape tables only bring `MCU_SPI0_CS2` (P2.09A) and `MCU_SPI0_CS3` (P1.26, ball D6) out to the headers, not a clock and data pair.
-
-Some header pins short two SoC balls. Only one ball is muxed to SPI. The partner ball is held in GPIO mode 7 with its output disabled.
-
-### Linux, header P2
+Then:
 
 ```
-AM62X_IOPAD(0x01bc, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 0) /* (A14) SPI0_CLK */
-AM62X_IOPAD(0x01c4, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 0) /* (B14) SPI0_D1 */
-AM62X_IOPAD(0x01c0, PIN_INPUT|PIN_DRIVE_STRENGTH_NOMINAL, 0) /* (B13) SPI0_D0 */
-AM62X_IOPAD(0x01b4, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 0) /* (A13) SPI0_CS0 */
-AM62X_IOPAD(0x00a4, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* (M22) GPMC0_DIR.GPIO0_40 */
-AM62X_IOPAD(0x0170, PIN_DISABLE|PIN_DRIVE_STRENGTH_NOMINAL, 7) /* (AA18) RGMII2_TD1.GPIO0_90 */
+./pb2-demo --tmux
 ```
 
-| Signal | Header | Ball | Pad offset |
-| --- | --- | --- | --- |
-| CLK | P2.29 | A14 | `0x01bc` |
-| MOSI (SPI0_D1) | P2.25 | B14 | `0x01c4` |
-| MISO (SPI0_D0) | P2.27 | B13 | `0x01c0` |
-| CS0 | P2.31 | A13 | `0x01b4` |
+`/root` holds `pb2`, `pb2-demo`, `pb2_m4.elf`, and both PRU images. The same files are also on `PATH` and in `/lib/firmware`. The TI kernel in this image already has the PRU virtio kick, so no extra driver is needed.
 
-P2.29A (ball M22) and P2.31A (ball AA18) are the shorted partners and are disabled. Probe P2.25, P2.27, P2.29, and P2.31. Clock is 1 MHz, SPI mode 0. The payload is the five bytes `hello`.
+## What you should see
 
-### Zephyr, header P1
-
-| Signal | Header | Ball | Pad offset |
-| --- | --- | --- | --- |
-| CLK | P1.08 | A20 | `0x01b0` |
-| MOSI (SPI2_D1) | P1.12 | A19 | `0x0198` |
-| MISO (SPI2_D0) | P1.10 | B19 | `0x0194` |
-| CS0 | P1.06 | E19 | `0x01ac` |
-
-P1.06A (ball AD18), P1.10's other ball A18, and P1.12A (ball AE18) are disabled. Probe P1.06, P1.08, P1.10, and P1.12. Same payload, rate, and mode as Linux.
-
-### Linux overlay file, build, and load
-
-Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtso`.
-
-`./beagle-linux/scripts/build.sh linux` is the one command. It fetches BeagleBoard-DeviceTrees, preprocesses this overlay with `ti/k3-pinctrl.h`, and runs `dtc`, along with `pb2`. The blob is `beagle-linux/overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo`.
-
-The Debian image loads overlays from the boot partition. Copy the blob to `/boot/firmware/overlays/`, then on the default label in `/boot/firmware/extlinux/extlinux.conf` set:
+On startup the linux window runs a short script. It pings PRU0, then sends `say`, `arm`, `chunk`, `xy 41 83`, `spi`, and `pru0 arm`. A passing run, one block per window:
 
 ```
-fdtoverlays /overlays/k3-am62-pocketbeagle2-spi0-hello.dtbo /overlays/k3-am62-pocketbeagle2-pru1-xy.dtbo /overlays/k3-am62-pocketbeagle2-leftover-gpio.dtbo
-```
-
-That takes effect on the next boot. After that, the linux window command `spi` writes `hello` to `/dev/spidev0.0` (main SPI0 is the SPI controller the Debian image enables; the child is `spidev@0` with compatible `rohm,dh2228fv`, which this kernel binds to `spidev`). Pass another path if the node name differs:
-
-```
-spi /dev/spidev0.0
-```
-
-`pb2 spi` does the same transfer and exits. The linux window prints `Linux wrote the SPI hello, 5 bytes on /dev/spidev0.0`. With the M4 image running, Zephyr's own SPI2 write leaves `spi hello ok` in the DDR mailbox, or `spi hello not ready` / `spi hello fail <errno>` if it does not.
-
-## X and Y through PRU0 to PRU1
-
-PRU0 is the only RPMsg core (channel `rpmsg-raw`, port 30). Linux types `pru0 xy <x> <y>` in the linux window. That text is the RPMsg payload. Zephyr does not open its own channel to PRU0. Linux types `zephyr xy <x> <y>`, eRPC `sendXy` runs on the existing Zephyr RPMsg channel, and Zephyr publishes the same `xy <x> <y>` text in the DDR mailbox at `0x9D9FF000`. PRU0 already polls that mailbox. Both numbers are decimal and fit in 32 bits.
-
-PRU0 writes the pair into PRUSS shared RAM, not the DDR mailbox. The AM62x linker map puts 32 KiB of shared RAM at local address `0x00010000` (`PRU_SHAREDMEM`, constant register C28, length `0x8000`). C28's pointer is that address shifted right by 8, so `0x0100` names this base, and a near access covers 256 bytes. The firmware does not program C28. It uses the direct local address, which is how the arm block is already reached. The SoC address of local `0x00010000` is `0x30050000`.
-
-| Offset from local `0x00010000` | SoC address | What |
-| --- | --- | --- |
-| `0x00` | `0x30050000` | Arm block, 32 bytes. PRU0 writes it. PRU1's timing loop samples it. |
-| `0x40` | `0x30050040` | X/Y record. Still inside the first 256 bytes of shared RAM. |
-
-The record is little-endian `uint32` fields, in this order: `magic`, `seq`, `x`, `y`, `consumed`. Magic is `0x50423258` (`PB2X`). PRU0 stores `x`, then `y`, then the magic, then `seq` last. `consumed` is PRU1's. `pb2 xy` prints the record once. The pru1 window prints it on each sample.
-
-PRU1 is the transmission core. When `seq` changes and the magic matches, it copies X and Y, shifts a frame out, then stores that `seq` in `consumed`. A matching `consumed` means PRU1 finished that sequence. It does not mean a scope saw the pin.
-
-The frame is SLIP (RFC 1055) carried as UART 8N1. Idle is high. Each byte is one UART character: start bit 0, eight data bits least-significant first, stop bit 1. On the BeagleBoard Debian image the PRUSS core clock is 250 MHz, and each bit is 2170 cycles, which is 115200 baud within a fraction of a percent. One iteration of PRU1's timing loop grows by the length of the frame when a new sequence is sent.
-
-Bytes, in order, when none of the payload bytes is `0xC0` or `0xDB`:
-
-| Byte | Value |
-| --- | --- |
-| 0 | `0xC0` SLIP END |
-| 1 | X bits 7:0 |
-| 2 | X bits 15:8 |
-| 3 | X bits 23:16 |
-| 4 | X bits 31:24 |
-| 5 | Y bits 7:0 |
-| 6 | Y bits 15:8 |
-| 7 | Y bits 23:16 |
-| 8 | Y bits 31:24 |
-| 9 | XOR of bytes 1 through 8 |
-| 10 | `0xC0` SLIP END |
-
-If a payload byte (X, Y, or the XOR) is `0xC0`, those two bytes on the wire are `0xDB 0xDC`. If it is `0xDB`, they are `0xDB 0xDD`. The END bytes are not escaped.
-
-The pin is header P1.20, ball Y24, pad offset `0x00cc`, mux mode 2 (`PR0_PRU1_GPO5`), which is PRU1 R30 bit 5:
-
-```
-AM62X_IOPAD(0x00cc, PIN_OUTPUT|PIN_DRIVE_STRENGTH_NOMINAL, 2) /* (Y24) VOUT0_DATA5.PR0_PRU1_GPO5 */
-```
-
-It is not a Linux SPI0 pin (P2.29, P2.25, P2.27, P2.31) and not a Zephyr SPI2 pin (P1.08, P1.12, P1.10, P1.06). The expansion table shows one ball on P1.20.
-
-Source: `beagle-linux/overlays/k3-am62-pocketbeagle2-pru1-xy.dtso`. `./beagle-linux/scripts/build.sh linux` builds the blob next to the SPI overlay. Copy it to `/boot/firmware/overlays/`. The Debian `fdtoverlays` line names this blob with the SPI blob and the leftover-gpio blob. The PRUSS node takes that pin group. The pad does not change until the next boot.
-
-Header pins that Linux, Zephyr, and the PRUs do not already use are muxed as input GPIOs by `beagle-linux/overlays/k3-am62-pocketbeagle2-leftover-gpio.dtso`. Each of those pins uses `AM62X_IOPAD()` (the two MCU partners use `AM62X_MCU_IOPAD()`) and is commented as unused and muxed as Linux GPIO. The same `build.sh linux` step writes `k3-am62-pocketbeagle2-leftover-gpio.dtbo`. Copy the blob to `/boot/firmware/overlays/`. The Debian `fdtoverlays` line names this blob with the other two. The Yocto image selects this blob on the default extlinux label with the other two. The full pin list is `PINMUX.md`. None of these pins is an LED.
-
-From the linux window the commands are `pru0 xy <x> <y>` and `zephyr xy <x> <y>`. PRU0's RPMsg reply names who asked and what it wrote for PRU1. `pb2 xy` prints the shared record, including `consumed`.
-
-## Run
-
-`pb2-demo-image` installs the runner on `PATH` as `/usr/bin/pb2-demo`. U-Boot loads the M4 ELF from `/lib/firmware` when it is present. Run the demo yourself:
-
-```
-pb2-demo
-```
-
-That starts PRU0, PRU1, and the M4. Output is merged on this console. Each line is prefixed `[Linux]`, `[M4]`, `[PRU0]`, or `[PRU1]`.
-
-```
-pb2-demo --tmux
-pb2-demo --attach
-pb2-demo --attach --tmux
-```
-
-`--tmux` is the four-window session `pb2` (`linux`, `zephyr`, `pru0`, `pru1`). `--attach` does not stop or start any core. If session `pb2` is already up, `--attach` attaches to it.
-
-### tmux
-
-The prefix is Ctrl+b. These are windows, not panes. `pb2-demo` creates them in this order:
-
-| After Ctrl+b | Window |
-| --- | --- |
-| 0 | `linux` |
-| 1 | `zephyr` |
-| 2 | `pru0` |
-| 3 | `pru1` |
-
-Detach, which leaves the session running and returns you to the shell: Ctrl+b, then d. Attach again with `tmux attach -t pb2`.
-
-The script needs root or sudo to stop and start the M4 and the two PRUs, insert `pru_rproc.ko` when the running kernel is missing `pru_rproc_kick`, and grant `pb2` `CAP_SYS_RAWIO` so it can open `/dev/mem`. From the Linux console: `zephyr say <text>`, `zephyr arm <period> <count>`, `zephyr chunk <text>`, `zephyr xy <x> <y>`, `zephyr spi [text]`, `pru0 xy <x> <y>`, `pru0 <text>`, or `spi`. `zephyr spi` asks the M4 to write SPI2. With no text it sends the five-byte hello. With text it sends those bytes. `spi` is the Linux `/dev/spidev0.0` hello. `zephyr arm` asks PRU0, through the mailbox, to arm PRU1. `pru0 arm <period> <count>` does that directly. `chunk` writes the bulk region and then calls Zephyr to check it. `xy` hands PRU0 the pair described above.
-
-The Linux side sends a startup script before it reads commands: ping PRU0, `say hello from linux`, `arm 100000 30`, `chunk bulk-hello`, `xy 41 83`, `spi`, then `pru0 arm 250000 20`.
-
-The Debian image does not ship this runner. [BeagleBoard Debian](#beagleboard-debian) is what that image still needs installed. The Yocto image already has `pb2-demo` on `PATH`.
-
-## What a passing run looks like
-
-Shell prompts are omitted. The typed command is the line above each Linux sentence. The windows print:
-
-```
-spi
-Linux wrote the SPI hello, 5 bytes on /dev/spidev0.0
-```
-
-Linux:
-
-```
-opening /tmp/pb2-demo/zephyr.in
-opening /tmp/pb2-demo/pru0.in
+== linux
 Linux sent "ping" to PRU0
 Linux asked Zephyr to say hello from linux
-Linux asked Zephyr to arm PRU1 100000 30
-Linux asked Zephyr to check chunk bulk-hello
-Linux asked PRU0 to arm PRU1 250000 20
-linux window ready. commands: zephyr say|arm|chunk|xy ... | pru0 <text>
-pru0 xy 17 29
-Linux asked PRU0 to publish X/Y 17 29
-zephyr xy 41 83
-Linux asked Zephyr to publish X/Y 41 83
-pru0 arm 250000 20
-Linux asked PRU0 to arm PRU1 250000 20
-zephyr arm 100000 30
-Linux asked Zephyr to arm PRU1 100000 30
-zephyr chunk bulk-hello
-Linux asked Zephyr to check chunk bulk-hello
-zephyr say hello from linux
-Linux asked Zephyr to say hello from linux
 Linux asked Zephyr to say "hello from linux", and Zephyr replied "zephyr: hello from linux"
-zephyr say "test"
-Linux asked Zephyr to say test
-Linux asked Zephyr to say "test", and Zephyr replied "zephyr: test"
-```
+Linux asked Zephyr to arm PRU1 100000 30
+Linux asked Zephyr to check chunk bulk-hello
+Linux asked Zephyr to publish X/Y 41 83
+Linux asked Zephyr to write SPI2 hello
+Linux asked Zephyr to write SPI2 "hello", and Zephyr replied "zephyr: spi wrote 5 bytes"
+Linux asked PRU0 to arm PRU1 250000 20
+linux window ready. commands: zephyr say|arm|chunk|xy|spi ... | pru0 <text> | spi | help
 
-Zephyr:
-
-```
+== zephyr
 zephyr window ready on /dev/rpmsg0 (eRPC)
 Linux asked Zephyr to say "hello from linux", and Zephyr replied "zephyr: hello from linux"
 Linux asked Zephyr to arm PRU1, and Zephyr published period 100000 count 30 for PRU0
 Linux asked Zephyr to check the chunk, and Zephyr matched seq 1 len 10 crc c959d039
 Linux asked Zephyr to publish X/Y 41 83, and Zephyr sent that pair to PRU0
-Linux asked Zephyr to arm PRU1, and Zephyr published period 100000 count 30 for PRU0
-Linux asked Zephyr to check the chunk, and Zephyr matched seq 2 len 10 crc c959d039
-Linux asked Zephyr to say "hello from linux", and Zephyr replied "zephyr: hello from linux"
-```
+Linux asked Zephyr to write SPI2 "hello", and Zephyr replied "zephyr: spi wrote 5 bytes"
 
-PRU0:
-
-```
+== pru0
 pru0 window ready on /dev/rpmsg2
 sent to pru0: ping
 Linux sent "ping" to PRU0, and PRU0 echoed it
 Zephyr asked PRU0 to arm PRU1, and PRU0 wrote period 100000 count 30 for PRU1
+Zephyr asked PRU0 to publish X/Y, and PRU0 wrote x 41 y 83 seq 1 for PRU1
 sent to pru0: arm 250000 20
 Linux asked PRU0 to arm PRU1, and PRU0 wrote period 250000 count 20 for PRU1
-sent to pru0: xy 17 29
-Linux asked PRU0 to publish X/Y, and PRU0 wrote x 17 y 29 seq 1 for PRU1
-Zephyr asked PRU0 to publish X/Y, and PRU0 wrote x 41 y 83 seq 2 for PRU1
-sent to pru0: arm 250000 20
-Linux asked PRU0 to arm PRU1, and PRU0 wrote period 250000 count 20 for PRU1
-Zephyr asked PRU0 to arm PRU1, and PRU0 wrote period 100000 count 30 for PRU1
+
+== pru1
+pru1 window ready, shared ram 0x30050000
+pru1 arm seq=1 period=100000 count=30
+pru1 xy seq=1 x=41 y=83 consumed=1
+pru1 arm seq=2 period=250000 count=20
 ```
 
-PRU1, from the same run. The window prints a line when the X/Y seq changes. An unchanged seq is not printed again. `consumed` matches `seq` for the pair Zephyr published:
+`consumed=1` means PRU1 has finished sending the frame for that X/Y. The `/dev/rpmsg` numbers can differ on your board.
 
-```
-pru1 xy seq=2 x=41 y=83 consumed=2
-```
+### Commands
 
-## Checked in and temporary
+Type these in the linux window:
 
-Checked in: `linux-app/`, `beagle-linux/`, `containers/`, `zephyr/` (the M4 app and `west.yml`), `pru/` sources, `yocto/`, `PINMUX.md`, this README, and `LAYOUT.md`.
-
-Left on disk and not committed:
-
-| Path | What it is |
+| Command | What happens |
 | --- | --- |
-| `.west/`, `zephyr/upstream/`, `modules/`, `build/`, `bootloader/`, `tools/` | West workspace |
-| `third_party/` | PRU software support package, EmbeddedRPC, and BeagleBoard-DeviceTrees |
-| `.cache/` | TI CGT install and kernel headers |
-| `pru/build/` | PRU firmware images |
-| `linux-app/pb2` | the userspace program |
-| `*.ko` | kernel modules, including patched `pru_rproc` |
+| `zephyr say <text>` | Zephyr replies `zephyr: <text>` (eRPC) |
+| `zephyr spi [text]` | Zephyr writes `text`, or `hello`, on SPI2 (header P1) |
+| `zephyr arm <period> <count>` | Zephyr asks PRU0, through the mailbox, to arm PRU1 |
+| `zephyr xy <x> <y>` | Zephyr hands X/Y to PRU0, and PRU1 sends it on P1.20 |
+| `zephyr chunk <text>` | Linux writes the DDR bulk buffer, and Zephyr checks its CRC |
+| `pru0 xy <x> <y>` | PRU0 publishes X/Y directly, and PRU1 sends it |
+| `pru0 arm <period> <count>` | PRU0 arms PRU1 directly |
+| `pru0 <text>` | PRU0 echoes the text |
+| `spi [device]` | Linux writes `hello` on SPI0 (header P2), `/dev/spidev0.0` by default |
+| `help`, `quit` | List the commands, or leave |
 
-The Debian image requests DHCP on `usb0`. That note is in [BeagleBoard Debian](#beagleboard-debian). The M4 console balls are header P2.05A and P2.07A. This example does not wire them, so `printk` is not the console you watch. The visible Zephyr console is the RPMsg window. `PINMUX.md` is the pin list.
+`pb2-demo` without `--tmux` prints all four windows on one console instead, with each line prefixed `[Linux]`, `[M4]`, `[PRU0]`, or `[PRU1]`. On a stopped board it starts any core that isn't running. It always leaves a running M4 alone: stopping an M4 that the kernel started hangs in `k3_rproc_stop` (EBUSY), and only a power cycle recovers it.
+
+## Probe the pins
+
+All signals are 3.3 V. On a Saleae Logic, choose the 1.8 V threshold setting for 3.3 V logic.
+
+| Signal | Header pins | What you see |
+| --- | --- | --- |
+| Zephyr SPI2 | P1.06 CS, P1.08 CLK, P1.10 MISO, P1.12 MOSI | `hello` at 1 MHz, mode 0, MSB first |
+| Linux SPI0 | P2.31 CS, P2.29 CLK, P2.27 MISO, P2.25 MOSI | `hello` at 1 MHz, mode 0, MSB first |
+| PRU1 UART | P1.20 | one SLIP frame per X/Y, 115200 8N1, idles high |
+
+For `xy 41 83`, P1.20 carries `C0 29 00 00 00 53 00 00 00 7A C0`. [PRU1](#pru1-the-slip-frame-on-p120) explains the frame. `PINMUX.md` lists every pin the demo muxes, plus the shorted partner balls it holds off.
+
+## How it works
+
+### Linux to Zephyr: eRPC over RPMsg
+
+- The M4 image opens the RPMsg channel `rpmsg-raw` at address 1024, which Linux sees as `/dev/rpmsgN`.
+- `zephyr/erpc/pb2.erpc` defines the functions Linux can call on Zephyr: `say`, `spiWrite`, `armPru1`, `sendXy`, and `takeChunk`. The generated client and server code is in `zephyr/erpc/shim/`.
+- Both sides run eRPC's framed transport straight over the RPMsg file descriptor (`linux-app/pb2_erpc_linux.cpp` and `zephyr/m4/src/pb2_erpc.cpp`).
+
+The M4 console UART is not wired, so the zephyr window is the console you watch.
+
+### Linux to Zephyr: the bulk buffer
+
+`zephyr chunk` passes data too large for an RPC argument:
+1. Linux writes the bytes into a 64 KiB DDR buffer at `0x9D9EF000` through `/dev/mem`.
+2. Linux calls `takeChunk(seq, length, crc)`.
+3. Zephyr checks the CRC.
+
+The buffer sits inside the memory Linux already reserves for the M4. `zephyr/m4/boards/pocketbeagle_2_am6254_m4.overlay` shrinks the M4's DDR region so that no part of the Zephyr image lands there.
+
+### Zephyr to PRU0: the DDR mailbox
+
+- Zephyr writes a text command such as `xy 41 83` or `arm 100000 30` into a 4 KiB mailbox at `0x9D9FF000`, then increments a sequence number.
+- PRU0 polls the sequence number.
+
+The mailbox holds one command and has no acknowledgement. If Zephyr publishes two commands faster than PRU0 polls, PRU0 only sees the second. In practice PRU0 polls far faster than commands arrive. A real design that cares should add a ring buffer or a consumed counter. The layout is in `zephyr/include/pb2_shm.h`, which every core includes.
+
+### Linux to PRU0: RPMsg text
+
+- PRU0 announces RPMsg channel `rpmsg-raw` on port 30.
+- Linux writes plain text: `ping`, `xy <x> <y>`, or `arm <period> <count>`.
+- PRU0 replies with one sentence that names who asked and what it did.
+- PRU0 learns Linux's address from the first message it receives, so Linux sends `ping` first. PRU0 can't report anything that Zephyr asks it to do until Linux has sent that first message.
+
+### PRU0 to PRU1: PRU shared RAM
+
+PRU0 writes two records into PRUSS shared RAM. PRU1 reads that RAM at local address `0x00010000`, and Linux reads it at `0x30050000`.
+
+| Offset | What | Fields (little-endian `uint32`) |
+| --- | --- | --- |
+| `0x00` | arm block | `magic`, `seq`, `period_cycles`, `periods`, then PRU1's `tick`, `done`, `applied_seq`, `applied_period` |
+| `0x40` | X/Y record | `magic` (`PB2X`), `seq`, `x`, `y`, `consumed` |
+
+- PRU0 writes the data first and `seq` last.
+- PRU1 acts when `seq` changes. When it finishes sending, it copies `seq` into `consumed`.
+- `pb2 watch`, the pru1 window, prints a line whenever either `seq` changes.
+
+### PRU1: the SLIP frame on P1.20
+
+- PRU1 doesn't use RPMsg. It loops with a cycle-counted delay, and `arm` sets that delay.
+- On a new X/Y, PRU1 sends one SLIP (RFC 1055) frame as UART 8N1 on R30 bit 5, which is header P1.20. The code is in `pru/pru1/slip_tx.asm`.
+- The PRU clock is 250 MHz, and one bit is about 2170 cycles, so the rate is 115200 baud.
+
+| Byte | Value |
+| --- | --- |
+| 0 | `0xC0` (END) |
+| 1–4 | X, least-significant byte first |
+| 5–8 | Y, least-significant byte first |
+| 9 | XOR of bytes 1–8 |
+| 10 | `0xC0` (END) |
+
+If a payload byte is `0xC0`, it goes out as `0xDB 0xDC`. If it is `0xDB`, it goes out as `0xDB 0xDD`.
+
+### Why Debian needs a patched PRU driver
+
+RPMsg is two ring buffers in shared memory, plus a doorbell in each direction.
+- The Linux-to-PRU doorbell is the remoteproc `.kick` operation. It raises a PRUSS system event that PRU0 sees as an interrupt.
+- The PRU-to-Linux doorbell is a "vring" interrupt.
+
+The `pru_rproc` driver in the BeagleBoard 6.18 kernel has neither. Linux refuses to start RPMsg firmware on that driver, with `.kick method not defined`.
+
+`beagle-linux/kernel/pru_rproc/` is that driver with TI's kick and vring IRQ handler added back. PRU1 uses no RPMsg, so only PRU0 needs it. The TI 6.12 kernel in the Yocto image already has these pieces.
+
+If you don't need RPMsg on a PRU, a shared-RAM mailbox like PRU1's works with the stock driver.
+
+### Pin muxing
+
+- **Linux overlays.** The header pins for Linux SPI0, PRU1's P1.20, and the leftover GPIOs are set by Linux overlays in `beagle-linux/overlays/`. They are written with `AM62X_IOPAD()` from BeagleBoard-DeviceTrees `ti/k3-pinctrl.h`. That header isn't copied into this repo; `build.sh` fetches a pinned commit.
+- **SPI2 in the Zephyr image.** The SPI2 pins on header P1 are muxed by the Zephyr devicetree overlay, inside `pb2_m4.elf`. The M4 can write those pad registers only because Linux has already unlocked them.
+
+The full pin list is `PINMUX.md`.
+
+## Build details
+
+`./beagle-linux/scripts/build.sh [target]` builds the container images under `containers/`, then compiles inside them as your own user. It uses podman if installed, otherwise docker; set `PB2_CONTAINER_ENGINE` to pick one.
+
+| Target | Output | Notes |
+| --- | --- | --- |
+| `linux` | `linux-app/pb2`, `beagle-linux/overlays/*.dtbo` | Debian 13 aarch64 cross compiler. Fetches EmbeddedRPC 1.14.0 and BeagleBoard-DeviceTrees. |
+| `pru` | `pru/build/am62x-pru0-fw`, `am62x-pru1-fw` | TI PRU compiler 2.3.3 and the PRU Software Support Package. |
+| `zephyr` | `build/zephyr/pb2_m4.elf` | Zephyr SDK 1.0.1. Zephyr is pinned in `zephyr/west.yml` and checked out at `zephyr/upstream`. |
+| `kmod` | `beagle-linux/kernel/pru_rproc/pru_rproc.ko` | Needs `PB2_SSH`. Reads the kernel version from the board, or from `PB2_KREL`. |
+| `bundle` | `out/pb2-beagle/` | Everything `install-beagle.sh` needs. Run it after the other targets. |
+| `all` (default) | `linux`, `pru`, and `zephyr` | |
+
+### Common problems
+
+- **"Permission denied" deleting `build/`, `.west/`, or `modules/`.** These files came from an older checkout, whose containers wrote them as another uid. Clear them once:
+  - podman: `podman unshare rm -rf build .west modules bootloader tools zephyr/upstream`
+  - docker: `sudo rm -rf` the same paths
+- **Zephyr build fails with `Not a file: .../pristine.cmake`.** `build/` is from before a directory move. Delete `build/` and build again.
+- **Don't run `west init -l .` from the repo root.** That puts the workspace in the parent directory. The script runs `west init -l zephyr` instead.
+- **`kmod` fails to copy `/usr/src/linux-headers-...`.** The BeagleBoard image ships the headers for its kernel. If yours doesn't have them, run `sudo apt install linux-headers-$(uname -r)` on the board.
+- **The PRU0 window never appears, and `dmesg` says `.kick method not defined`.** The stock `pru_rproc` is loaded. This is usually after a kernel upgrade. Rebuild with `build.sh kmod`, run `bundle`, and install again.
+- **Changes to the M4 image don't show up.** `pb2-demo` won't restart a running M4. It copies the new ELF to `/lib/firmware`, and the new image loads on the next reboot.
+
+## Repository
+
+`LAYOUT.md` is the directory map. `PINMUX.md` is the pin list.
+
+## License
+
+MIT; see `LICENSE`. `beagle-linux/kernel/pru_rproc/` is GPL-2.0-only because it is derived from the Linux driver.
