@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MIT
 # One-time setup of the demo on the BeagleBoard Debian image. Run it on the board.
 #
-#   sudo ./beagle-linux/scripts/install-beagle.sh [artifact-dir]
+#   sudo ./pb2-beagle/install-beagle.sh                    from a bundle
+#   sudo ./beagle-linux/scripts/install-beagle.sh [dir]    from a repo checkout
 #
 # Installs the demo and makes the parts that were lost at every reboot stick:
 #   - pb2 and pb2-demo on PATH, the PRU and M4 firmware in /lib/firmware
@@ -12,14 +13,21 @@
 #   - pb2-pru.service, which starts PRU0 and PRU1 at boot
 # The M4 is not touched. It starts from /lib/firmware at boot.
 #
-# Artifacts come from artifact-dir when it is given (flat, by file name), else
-# from the build outputs in this repo. Reboot when it finishes. Pads, the
-# module, and the rpmsg permissions only change at boot.
+# Artifacts come from dir when it is given (flat, by file name), else from
+# the directory this script is in when it is a bundle, else from the build
+# outputs in this repo. Reboot when it finishes. Pads, the module, and the
+# rpmsg permissions only change at boot.
 
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+HERE=$(cd "$(dirname "$0")" && pwd)
+ROOT=$(cd "$HERE/../.." && pwd)
 SRC=${1:-}
+# Run from a bundle (./beagle-linux/scripts/build.sh bundle), the artifacts
+# sit next to this script.
+if [[ -z $SRC && -f $HERE/pb2 ]]; then
+	SRC=$HERE
+fi
 EXTLINUX=/boot/firmware/extlinux/extlinux.conf
 OVERLAY_DIR=/boot/firmware/overlays
 BASE_DTB=/boot/firmware/ti/k3-am62-pocketbeagle2.dtb
@@ -132,12 +140,19 @@ cat > /usr/libexec/pb2-pru-start <<'EOF'
 #!/bin/bash
 # Start PRU0 and PRU1 from /lib/firmware. Leaves a running core alone.
 set -eu
+checked=0
 for name in 30074000.pru:am62x-pru0-fw 30078000.pru:am62x-pru1-fw; do
 	want=${name%%:*}
 	fw=${name##*:}
 	for _ in $(seq 1 50); do
 		for d in /sys/class/remoteproc/remoteproc*; do
 			[[ -e $d/name && $(cat "$d/name") == "$want" ]] || continue
+			# The PRU remoteproc exists, so pru_rproc is loaded by now.
+			if [[ $checked -eq 0 ]] && ! grep -q pru_rproc_kick /proc/kallsyms; then
+				echo "pru_rproc has no virtio kick. Was the kernel upgraded? Rebuild the" >&2
+				echo "module for $(uname -r) and run install-beagle.sh again. PRU0 RPMsg will fail." >&2
+			fi
+			checked=1
 			if [[ $(cat "$d/state") == offline ]]; then
 				printf "%s\n" "$fw" > "$d/firmware"
 				printf "start\n" > "$d/state"
@@ -171,3 +186,4 @@ echo
 echo "Done. Reboot to apply the overlays and the module."
 echo "After the reboot: pb2-demo --attach --tmux"
 echo "Original extlinux.conf: $EXTLINUX.pb2-bak"
+echo "The module only fits kernel $KREL. After a kernel upgrade, rebuild it and run this again."

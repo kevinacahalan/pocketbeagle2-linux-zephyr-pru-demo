@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Run the PocketBeagle 2 demo on the board. This does not start at boot.
 #
-#   pb2-demo                 start PRU0, PRU1, and the M4, then one console
+#   pb2-demo                 (re)start PRU0 and PRU1, start the M4 if it is
+#                            stopped, then one merged console
 #   pb2-demo --tmux          same start, in tmux session pb2 (four windows)
 #   pb2-demo --attach        do not stop or start any core
 #   pb2-demo --attach --tmux attach to session pb2, or open it without a restart
@@ -22,8 +23,9 @@ usage() {
 	cat <<'EOF'
 usage: pb2-demo [--tmux] [--attach]
 
-  (default)  Start PRU0, PRU1, and the M4. Then print one console.
-             Each line is prefixed [Linux], [M4], [PRU0], or [PRU1].
+  (default)  Restart PRU0 and PRU1. Start the M4 if it is stopped; a
+             running M4 is left alone. Then print one console. Each line
+             is prefixed [Linux], [M4], [PRU0], or [PRU1].
   --tmux     Same start, in tmux session pb2. Windows: linux, zephyr,
              pru0, pru1.
   --attach   Do not stop or start any core. Connect to what is already
@@ -133,17 +135,23 @@ load_fw() {
 		echo "missing $src" >&2
 		exit 1
 	fi
+	dest=/lib/firmware/$fwname
+	# Stopping an M4 the kernel started times out (EBUSY) and drops its
+	# RPMsg channel, so a running M4 is left alone. A new ELF still goes to
+	# /lib/firmware, where the kernel loads it on the next boot.
 	if [[ $name == "$M4_NAME" ]]; then
 		rproc=$(rproc_by_name "$name")
 		state=$(cat "$rproc/state")
 		if [[ $state == running ]]; then
-			echo "$name is already running. Leaving it."
+			if ! cmp -s "$src" "$dest"; then
+				as_root cp "$src" "$dest"
+				echo "$name is running the old firmware. Installed $src; reboot to load it."
+			fi
 			return 0
 		fi
 	fi
 	stop_core "$name"
 	rproc=$(rproc_by_name "$name")
-	dest=/lib/firmware/$fwname
 	if [[ $(readlink -f "$src") != $(readlink -f "$dest") ]]; then
 		as_root cp "$src" "$dest"
 	fi
@@ -194,11 +202,14 @@ ensure_pru_kick() {
 	fi
 	if [[ -n ${PB2_PRU_KO:-} && -f $PB2_PRU_KO ]]; then
 		ko=$PB2_PRU_KO
+	elif [[ -f /usr/lib/pru_rproc.ko ]]; then
+		ko=/usr/lib/pru_rproc.ko
 	elif [[ -f pru_rproc.ko ]]; then
 		ko=$PWD/pru_rproc.ko
 	else
-		echo "pru_rproc has no pru_rproc_kick." >&2
-		echo "Build it with beagle-linux/scripts/build.sh kmod and set PB2_PRU_KO to that file." >&2
+		echo "The loaded pru_rproc has no pru_rproc_kick, so PRU0's RPMsg cannot start." >&2
+		echo "Build it with ./beagle-linux/scripts/build.sh kmod, then run install-beagle.sh," >&2
+		echo "or set PB2_PRU_KO to the .ko file." >&2
 		exit 1
 	fi
 	stop_core "$PRU0_NAME"
