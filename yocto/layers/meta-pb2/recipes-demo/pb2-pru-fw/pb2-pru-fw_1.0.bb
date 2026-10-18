@@ -1,7 +1,9 @@
 SUMMARY = "PocketBeagle 2 PRU0 and PRU1 firmware"
 DESCRIPTION = "Compiles both PRU images with TI CGT and the PRU software support package. Installs am62x-pru0-fw and am62x-pru1-fw."
-LICENSE = "CLOSED"
-LIC_FILES_CHKSUM = ""
+# The demo is MIT. The PRU Software Support Package it links is BSD-3-Clause.
+LICENSE = "MIT & BSD-3-Clause"
+LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302 \
+    file://${COMMON_LICENSE_DIR}/BSD-3-Clause;md5=550794465ba0ec5312d6919e203a55f9"
 
 DEPENDS = "ti-cgt-pru-native"
 

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /*
  * eRPC allocator for the M4. Zephyr's minimal C++ library already provides
  * operator new, so this file only maps erpc_malloc/erpc_free onto k_malloc.

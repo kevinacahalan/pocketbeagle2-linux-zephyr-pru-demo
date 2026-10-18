@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /*
  * Linux eRPC client. The transport is the existing /dev/rpmsg character device.
  */

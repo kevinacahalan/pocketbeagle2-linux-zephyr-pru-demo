@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /*
  * Zephyr on the PocketBeagle 2 M4.
  *

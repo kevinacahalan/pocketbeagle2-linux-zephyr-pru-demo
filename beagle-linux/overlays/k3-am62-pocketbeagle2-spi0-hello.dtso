@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // PocketBeagle 2 Linux SPI0 hello. Apply on the flashed Debian image.
 //
 // Controller: main_spi0 at 0x20100000. Mux mode 0 is SPI, not a PRU function.

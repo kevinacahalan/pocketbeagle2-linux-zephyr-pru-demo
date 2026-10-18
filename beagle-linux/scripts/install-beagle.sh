@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT
 # One-time setup of the demo on the BeagleBoard Debian image. Run it on the board.
 #
 #   sudo ./beagle-linux/scripts/install-beagle.sh [artifact-dir]

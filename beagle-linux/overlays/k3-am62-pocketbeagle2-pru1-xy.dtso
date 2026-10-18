@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // PocketBeagle 2 PRU1 X/Y transmit pin.
 //
 // PRU1 bit-bangs UART 8N1 on R30 bit 5. Mux mode 2 is PR0_PRU1_GPO5.

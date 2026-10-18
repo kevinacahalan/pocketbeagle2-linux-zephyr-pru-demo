@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /*
  * PRU0 firmware. This core is the transfer core.
  *

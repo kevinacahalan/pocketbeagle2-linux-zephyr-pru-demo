@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT
 # Build the demo in the container images under containers/.
 #   containers/linux/Containerfile    Linux userspace and the PRU kernel module
 #   containers/pru-cgt/Containerfile  TI CGT 2.3.3, then the PRU firmware

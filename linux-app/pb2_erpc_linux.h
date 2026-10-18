@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 #ifndef PB2_ERPC_LINUX_H_
 #define PB2_ERPC_LINUX_H_
 
