@@ -50,14 +50,13 @@ do_compile () {
     export GIT_CONFIG_COUNT=1
     export GIT_CONFIG_KEY_0=safe.directory
     export GIT_CONFIG_VALUE_0='*'
-    pip3 install --target ${WORKDIR}/py west
+    pip3 install --target ${WORKDIR}/py west==1.5.0
     export PYTHONPATH="${WORKDIR}/py${PYTHONPATH:+:$PYTHONPATH}"
     export PATH="${WORKDIR}/py/bin:${PATH}"
-    # The repo root already has a .west workspace. west walks parents, so
-    # init this firmware tree from /tmp instead of inside that workspace.
-    ws=/tmp/pb2-m4-west
-    rm -rf "$ws"
-    mkdir -p "$ws"
+    # The repo root may already have a .west workspace, and WORKDIR is under
+    # the repo. west walks parents, so init this tree outside the repo, in a
+    # private directory so two builds cannot collide.
+    ws=$(mktemp -d /tmp/pb2-m4-west.XXXXXX)
     cp -a ${S}/. "$ws/"
     cd "$ws"
     west init -l zephyr
@@ -74,6 +73,7 @@ do_compile () {
     fi
     test -f "$elf"
     install -m 0644 "$elf" ${WORKDIR}/pb2_m4.elf
+    rm -rf "$ws"
 }
 
 do_install () {
