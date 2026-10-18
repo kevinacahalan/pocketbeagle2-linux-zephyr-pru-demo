@@ -51,7 +51,7 @@
 
 `beagle-linux/kernel/pru_rproc/` — `pru_rproc` with virtio kick.
 
-`beagle-linux/scripts/` — `build.sh` compiles in the containers; `pb2-demo` starts the demo on the board.
+`beagle-linux/scripts/` — `build.sh` compiles in the containers; `pb2-demo` starts the demo on the board; `install-beagle.sh` sets up the Debian image once, so a reboot needs no manual steps.
 
 `zephyr/` — M4 app, shared mailbox header, eRPC shim, and the west manifest.
 
