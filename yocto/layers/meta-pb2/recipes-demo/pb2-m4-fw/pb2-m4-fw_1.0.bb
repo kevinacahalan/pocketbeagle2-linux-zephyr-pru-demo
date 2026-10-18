@@ -1,5 +1,5 @@
 SUMMARY = "PocketBeagle 2 Zephyr M4 demo firmware"
-DESCRIPTION = "Builds the M4 app in zephyr/ for pocketbeagle_2/am6254/m4 with the Zephyr SDK and a west workspace fetched during the build. Installs the ELF as am62-mcu-m4f0_0-fw."
+DESCRIPTION = "Builds the M4 app in zephyr/ for pocketbeagle_2/am6254/m4 with the Zephyr SDK and a west workspace fetched during the build. Installs the ELF as /lib/firmware/pb2_m4.elf, not the default M4 name, so the M4 stays off until pb2-demo starts it."
 # The demo is MIT, EmbeddedRPC is BSD-3-Clause, and Zephyr is Apache-2.0.
 LICENSE = "MIT & BSD-3-Clause & Apache-2.0"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302 \
@@ -78,7 +78,7 @@ do_compile () {
 
 do_install () {
     install -d ${D}${nonarch_base_libdir}/firmware
-    install -m 0644 ${WORKDIR}/pb2_m4.elf ${D}${nonarch_base_libdir}/firmware/am62-mcu-m4f0_0-fw
+    install -m 0644 ${WORKDIR}/pb2_m4.elf ${D}${nonarch_base_libdir}/firmware/pb2_m4.elf
 }
 
-FILES:${PN} = "${nonarch_base_libdir}/firmware/am62-mcu-m4f0_0-fw"
+FILES:${PN} = "${nonarch_base_libdir}/firmware/pb2_m4.elf"

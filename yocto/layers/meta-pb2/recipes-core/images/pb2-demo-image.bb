@@ -53,7 +53,7 @@ pb2_root_demo() {
     install -m 0755 -o 0 -g 0 ${IMAGE_ROOTFS}${bindir}/pb2-demo ${home}/pb2-demo
     install -m 0644 -o 0 -g 0 ${fw}/am62x-pru0-fw ${home}/am62x-pru0-fw
     install -m 0644 -o 0 -g 0 ${fw}/am62x-pru1-fw ${home}/am62x-pru1-fw
-    install -m 0644 -o 0 -g 0 ${fw}/am62-mcu-m4f0_0-fw ${home}/pb2_m4.elf
+    install -m 0644 -o 0 -g 0 ${fw}/pb2_m4.elf ${home}/pb2_m4.elf
     cat > ${home}/README.md <<'EOF'
 pb2-demo starts the demo.
 pb2 is the Linux program it runs.

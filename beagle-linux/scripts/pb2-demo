@@ -125,7 +125,7 @@ load_fw() {
 		;;
 	esac
 	case $fwname in
-	am62-mcu-m4f0_0-fw|am62x-pru0-fw|am62x-pru1-fw) ;;
+	pb2_m4.elf|am62x-pru0-fw|am62x-pru1-fw) ;;
 	*)
 		echo "refusing to install $fwname" >&2
 		exit 1
@@ -267,10 +267,12 @@ if [[ $ATTACH -eq 0 ]]; then
 	ensure_pru_kick
 	PRU0_FW=$(firmware_path am62x-pru0-fw /lib/firmware/am62x-pru0-fw pru/build/am62x-pru0-fw)
 	PRU1_FW=$(firmware_path am62x-pru1-fw /lib/firmware/am62x-pru1-fw pru/build/am62x-pru1-fw)
-	M4_FW=$(firmware_path pb2_m4.elf /lib/firmware/am62-mcu-m4f0_0-fw build/zephyr/pb2_m4.elf)
+	M4_FW=$(firmware_path pb2_m4.elf /lib/firmware/pb2_m4.elf build/zephyr/pb2_m4.elf)
 	load_fw "$PRU0_NAME" am62x-pru0-fw "$PRU0_FW"
 	load_fw "$PRU1_NAME" am62x-pru1-fw "$PRU1_FW"
-	load_fw "$M4_NAME" am62-mcu-m4f0_0-fw "$M4_FW"
+	# Not the kernel's default name (am62-mcu-m4f0_0-fw), so nothing boots
+	# the M4 until this script does.
+	load_fw "$M4_NAME" pb2_m4.elf "$M4_FW"
 elif [[ -n $(viewer_pids) ]]; then
 	echo "demo viewers are already running. --attach does not restart them." >&2
 	echo "Use the console that started them, or run pb2-demo without --attach." >&2
