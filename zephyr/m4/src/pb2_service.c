@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /*
  * Functions Linux calls through Zephyr eRPC.
  * arm_pru1 asks PRU0, via the small mailbox, to arm PRU1.

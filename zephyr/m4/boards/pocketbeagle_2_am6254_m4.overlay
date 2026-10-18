@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 #include <zephyr/dt-bindings/pinctrl/ti-k3-pinctrl.h>
 
 /*

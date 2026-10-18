@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /*
  * eRPC server over the existing OpenAMP RPMsg endpoint.
  * One RPMsg message is a slice of an eRPC frame. Frames are small.

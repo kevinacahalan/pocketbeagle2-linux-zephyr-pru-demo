@@ -1,7 +1,9 @@
 SUMMARY = "PocketBeagle 2 Zephyr M4 demo firmware"
 DESCRIPTION = "Builds the M4 app in zephyr/ for pocketbeagle_2/am6254/m4 with the Zephyr SDK and a west workspace fetched during the build. Installs the ELF as am62-mcu-m4f0_0-fw."
-LICENSE = "BSD-3-Clause & CLOSED"
-LIC_FILES_CHKSUM = "file://third_party/erpc/LICENSE;md5=b66f32a90f9577a5a3255c21d79bc619"
+# The demo is MIT, EmbeddedRPC is BSD-3-Clause, and Zephyr is Apache-2.0.
+LICENSE = "MIT & BSD-3-Clause & Apache-2.0"
+LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302 \
+    file://third_party/erpc/LICENSE;md5=b66f32a90f9577a5a3255c21d79bc619"
 
 DEPENDS = "cmake-native ninja-native gperf-native dtc-native python3-native python3-pip-native git-native"
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Header pins this demo does not already use, muxed as Linux GPIO.
 //
 // Each pin below is a leftover. It is unused by the demo. It is not SPI0,

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /*
  * Shared layout for the PocketBeagle 2 hello-world.
  *

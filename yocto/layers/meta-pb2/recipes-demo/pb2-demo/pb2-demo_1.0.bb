@@ -1,7 +1,9 @@
 SUMMARY = "PocketBeagle 2 Linux demo"
 DESCRIPTION = "Cross-compiles the pb2 userspace program and the Debian device-tree overlays, and installs the pb2-demo runner. EmbeddedRPC is fetched and compiled. BeagleBoard-DeviceTrees is fetched so the overlays can include ti/k3-pinctrl.h."
-LICENSE = "BSD-3-Clause & CLOSED & (GPL-2.0-only | MIT)"
-LIC_FILES_CHKSUM = "file://third_party/erpc/LICENSE;md5=b66f32a90f9577a5a3255c21d79bc619 \
+# The demo is MIT, EmbeddedRPC is BSD-3-Clause, and k3-pinctrl.h is GPL-2.0-only OR MIT.
+LICENSE = "MIT & BSD-3-Clause & (GPL-2.0-only | MIT)"
+LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302 \
+    file://third_party/erpc/LICENSE;md5=b66f32a90f9577a5a3255c21d79bc619 \
     file://third_party/BeagleBoard-DeviceTrees/src/arm64/ti/k3-pinctrl.h;beginline=1;endline=1;md5=d3f11af791a00b9505045ea598ecc0c7 \
     file://third_party/BeagleBoard-DeviceTrees/LICENSES/MIT.txt;md5=3912d958d00bac4a6b550f75d7c806bb \
     file://third_party/BeagleBoard-DeviceTrees/LICENSES/GPL-2.0-only.txt;md5=3d26203303a722dedc6bf909d95ba815 \

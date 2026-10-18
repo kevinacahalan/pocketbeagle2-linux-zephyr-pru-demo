@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /*
  * PRU1 firmware. This core sends the SLIP frame.
  *

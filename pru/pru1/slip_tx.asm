@@ -1,3 +1,4 @@
+; SPDX-License-Identifier: MIT
 ;
 ; PRU1 signal generation. transmit_xy is called from the C loop.
 ; It SLIP-frames X and Y, then shifts each byte out as UART 8N1 on R30 bit 5.

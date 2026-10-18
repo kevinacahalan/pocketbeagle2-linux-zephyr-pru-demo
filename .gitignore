@@ -1,5 +1,5 @@
 # Checked in
-#   README.md, LAYOUT.md, .gitignore
+#   README.md, LAYOUT.md, PINMUX.md, LICENSE, .gitignore
 #   zephyr/west.yml                   west manifest (workspace topdir is the repo root)
 #   linux-app/                        Linux userspace program (pb2)
 #   beagle-linux/                     Debian overlays, patched pru_rproc, scripts

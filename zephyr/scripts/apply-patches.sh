@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT
 # Re-apply local Zephyr patches after west update. west update checks out
 # the manifest revision and drops edits under zephyr/upstream/.
 set -euo pipefail
