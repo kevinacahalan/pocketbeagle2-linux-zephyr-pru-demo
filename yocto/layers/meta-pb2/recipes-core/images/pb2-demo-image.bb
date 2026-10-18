@@ -17,6 +17,10 @@ IMAGE_INSTALL:append = " \
 
 IMAGE_FEATURES:append = " ssh-server-dropbear"
 
+# C.UTF-8. core-image-minimal installs no locale at all, and tmux (pb2-demo
+# --tmux) refuses to start without a UTF-8 one.
+IMAGE_LINGUAS = "c"
+
 # FAT, then the ext4 root U-Boot reads as mmc 1:2, then swap.
 WKS_FILE = "pb2-beagle.wks"
 
