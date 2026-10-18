@@ -64,6 +64,7 @@ It runs on either of two card images:
    - It adds the three overlays to the default boot entry. The original is saved as `extlinux.conf.pb2-bak`.
    - It adds a udev rule so the `dialout` group can use `/dev/rpmsg*`.
    - It enables `pb2-pru.service`, which starts both PRUs at boot.
+   - It installs `tmux` with apt if the image doesn't have it (the stock image doesn't).
 
    The M4 image goes in as `/lib/firmware/pb2_m4.elf`, not under the kernel's default name `am62-mcu-m4f0_0-fw`, so the M4 stays off at boot until `pb2-demo` starts it. `pb2-demo` restarts it with the current image each time it runs. Run the script again after rebuilding. Also run it again after a kernel upgrade: the module only fits the kernel it was built for.
 

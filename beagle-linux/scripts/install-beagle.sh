@@ -11,6 +11,7 @@
 #   - the three overlays on the default extlinux label
 #   - a udev rule that makes /dev/rpmsg* usable by the dialout group
 #   - pb2-pru.service, which starts PRU0 and PRU1 at boot
+#   - tmux, for pb2-demo --tmux, from apt when it is missing
 # The M4 image is installed as /lib/firmware/pb2_m4.elf, not under the kernel's
 # default name am62-mcu-m4f0_0-fw, so the M4 stays off until pb2-demo starts it.
 #
@@ -105,6 +106,13 @@ if command -v setcap >/dev/null 2>&1 || [[ -x /usr/sbin/setcap ]]; then
 	"$(command -v setcap || echo /usr/sbin/setcap)" cap_sys_rawio+ep /usr/bin/pb2
 fi
 
+if ! command -v tmux >/dev/null 2>&1; then
+	echo "tmux (for pb2-demo --tmux)"
+	if ! { apt-get update -qq && apt-get install -y -qq tmux; } >/dev/null; then
+		echo "Could not install tmux. pb2-demo without --tmux still works." >&2
+	fi
+fi
+
 echo "pru_rproc for $KREL"
 install -m 0644 "$KO" /usr/lib/pru_rproc.ko
 install -D -m 0644 "$KO" "/lib/modules/$KREL/updates/pru_rproc.ko"
@@ -191,6 +199,6 @@ udevadm control --reload
 
 echo
 echo "Done. Reboot to apply the overlays and the module."
-echo "After the reboot: pb2-demo --attach --tmux"
+echo "After the reboot: pb2-demo --tmux"
 echo "Original extlinux.conf: $EXTLINUX.pb2-bak"
 echo "The module only fits kernel $KREL. After a kernel upgrade, rebuild it and run this again."
