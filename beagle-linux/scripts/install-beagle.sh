@@ -108,8 +108,8 @@ fi
 
 if ! command -v tmux >/dev/null 2>&1; then
 	echo "tmux (for pb2-demo --tmux)"
-	if ! { apt-get update -qq && apt-get install -y -qq tmux; } >/dev/null; then
-		echo "Could not install tmux. pb2-demo without --tmux still works." >&2
+	if ! { apt-get update -qq && apt-get install -y -qq tmux; } >/dev/null 2>&1; then
+		echo "Could not install tmux (does the board have internet?). Plain pb2-demo still works." >&2
 	fi
 fi
 
@@ -199,6 +199,10 @@ udevadm control --reload
 
 echo
 echo "Done. Reboot to apply the overlays and the module."
-echo "After the reboot: pb2-demo --tmux"
+if command -v tmux >/dev/null 2>&1; then
+	echo "After the reboot: pb2-demo --tmux"
+else
+	echo "After the reboot: pb2-demo"
+fi
 echo "Original extlinux.conf: $EXTLINUX.pb2-bak"
 echo "The module only fits kernel $KREL. After a kernel upgrade, rebuild it and run this again."

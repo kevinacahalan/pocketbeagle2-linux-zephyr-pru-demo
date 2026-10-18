@@ -30,51 +30,107 @@ It runs on either of two card images:
 
 ## What you need
 
-- A PocketBeagle 2 and a microSD card.
-- A Linux PC with `git` and either `podman` or `docker`. Every compiler runs in a container, so you don't install any toolchains.
-- Network access from the PC to GitHub, git.ti.com, and software-dl.ti.com.
+- A PocketBeagle 2, a microSD card (16 GB or more), and a USB-C data cable to your PC.
+- A Linux PC with `git`, `ssh`, `rsync`, `xz`, and either `podman` or `docker`. Every compiler runs in a container, so you don't install any toolchains.
+- About 6 GB of free disk on the PC: roughly 3 GB of container images plus 2 GB of fetched sources. The first build takes 10–20 minutes, mostly downloading. Later builds take seconds to a minute.
+- Network access from the PC to GitHub, git.ti.com, software-dl.ti.com, and Docker Hub.
 - Optional: a logic analyzer, to watch SPI and the PRU1 UART on the header pins ([Probe the pins](#probe-the-pins)).
+
+Get the code:
+
+```
+git clone https://github.com/kevinacahalan/pocketbeagle2-linux-zephyr-pru-demo.git
+cd pocketbeagle2-linux-zephyr-pru-demo
+```
+
+Every command below runs from this directory unless it says "on the board".
 
 ## Quick start: BeagleBoard Debian
 
-1. **Flash the image.** Use [PocketBeagle 2 Debian 13.7 IoT, v6.18 k3](https://www.beagleboard.org/distros/pocketbeagle-2-debian-13-7-2026-10-09-iot-v6-18-x-k3), file `pocketbeagle2-debian-13.7-iot-v6.18-k3-arm64-2026-10-09-10gb.img.xz`. Boot it and make sure you can `ssh` in. Below, `USER@BOARD` is that login.
+### 1. Flash the card and log in
 
-2. **Build on the PC**, from the repo root:
+Download [PocketBeagle 2 Debian 13.7 IoT, v6.18 k3](https://www.beagleboard.org/distros/pocketbeagle-2-debian-13-7-2026-10-09-iot-v6-18-x-k3), the file `pocketbeagle2-debian-13.7-iot-v6.18-k3-arm64-2026-10-09-10gb.img.xz`. A fresh image has no login until you give it one. Pick either way:
 
-   ```
-   ./beagle-linux/scripts/build.sh
-   PB2_SSH=USER@BOARD ./beagle-linux/scripts/build.sh kmod
-   ./beagle-linux/scripts/build.sh bundle
-   ```
+- **BeagleBoard Imager** (easiest). Choose the image, and in its settings set a user name, a password, and your SSH public key. Imager writes them for you.
+- **By hand.**
+  1. Write the image: `xz -dc pocketbeagle2-debian-*.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress`. Replace `/dev/sdX` with your card. Check it with `lsblk` first: `dd` overwrites whatever you give it.
+  2. Mount the card's `BOOT` partition.
+  3. Add these lines to the end of `sysconf.txt`, with your own values. The board applies them on first boot and then clears the password from the file.
 
-   - The first command builds `pb2`, the overlays, both PRU images, and the Zephyr M4 image. The first run downloads a lot. Later runs are quick.
-   - `kmod` builds the patched PRU driver for the kernel running on your board. It copies that kernel's headers from the board once. [Why a patched driver](#why-debian-needs-a-patched-pru-driver) explains the reason.
-   - `bundle` gathers everything into `out/pb2-beagle/`.
+     ```
+     user_name=debian
+     user_password=choose-a-password
+     user_authorized_key=ssh-ed25519 AAAA... you@pc
+     ```
 
-3. **Install on the board and reboot:**
+     The last line is the contents of your `~/.ssh/id_ed25519.pub`. Run `ssh-keygen -t ed25519` if you don't have one. With the key in place, the build steps below don't keep asking for a password.
 
-   ```
-   scp -r out/pb2-beagle USER@BOARD:
-   ssh -t USER@BOARD 'sudo ./pb2-beagle/install-beagle.sh && sudo reboot'
-   ```
+Put the card in the board and plug the board into the PC with the USB-C cable; that cable powers it too. The first boot takes about a minute, because it grows the root partition to fill the card.
 
-   `install-beagle.sh` makes the setup survive reboots:
-   - It installs `pb2`, `pb2-demo`, and the firmware.
-   - It installs the patched `pru_rproc` module so the kernel loads it at boot.
-   - It adds the three overlays to the default boot entry. The original is saved as `extlinux.conf.pb2-bak`.
-   - It adds a udev rule so the `dialout` group can use `/dev/rpmsg*`.
-   - It enables `pb2-pru.service`, which starts both PRUs at boot.
-   - It installs `tmux` with apt if the image doesn't have it (the stock image doesn't).
+The board then shows up on the PC as a USB network adapter. It takes `192.168.7.2` and hands your PC `192.168.7.1`:
 
-   The M4 image goes in as `/lib/firmware/pb2_m4.elf`, not under the kernel's default name `am62-mcu-m4f0_0-fw`, so the M4 stays off at boot until `pb2-demo` starts it. `pb2-demo` restarts it with the current image each time it runs. Run the script again after rebuilding. Also run it again after a kernel upgrade: the module only fits the kernel it was built for.
+```
+ssh debian@192.168.7.2
+```
 
-4. **Run the demo** on the board:
+Below, `USER@BOARD` means that login, for example `debian@192.168.7.2`. You'll also need its password for `sudo` on the board.
 
-   ```
-   pb2-demo --tmux
-   ```
+The same cable also gives a serial console, usually `/dev/ttyACM0` on the PC (115200 baud), if SSH doesn't come up.
 
-   You get a tmux session with four windows. Switch windows with Ctrl+b then 0–3. Detach with Ctrl+b then d. Come back with `pb2-demo --attach --tmux`. [What you should see](#what-you-should-see) shows the output to expect.
+### 2. Build on the PC
+
+```
+./beagle-linux/scripts/build.sh
+PB2_SSH=USER@BOARD ./beagle-linux/scripts/build.sh kmod
+./beagle-linux/scripts/build.sh bundle
+```
+
+- **The first command** builds `pb2`, the overlays, both PRU images, and the Zephyr M4 image.
+- **`kmod`** builds the patched PRU driver for the kernel running on your board. It asks the board for its kernel version over SSH, and the first time it copies that kernel's headers with `rsync`. The board must be up and reachable. [Why a patched driver](#why-debian-needs-a-patched-pru-driver) explains why it's needed.
+- **`bundle`** gathers everything into `out/pb2-beagle/`.
+
+### 3. Install on the board and reboot
+
+```
+scp -r out/pb2-beagle USER@BOARD:
+ssh -t USER@BOARD 'sudo ./pb2-beagle/install-beagle.sh && sudo reboot'
+```
+
+It asks for your `sudo` password on the board. `install-beagle.sh` makes the setup survive reboots:
+- It installs `pb2`, `pb2-demo`, and the firmware.
+- It installs the patched `pru_rproc` module so the kernel loads it at boot.
+- It adds the three overlays to the default boot entry. The original is saved as `extlinux.conf.pb2-bak`.
+- It adds a udev rule so the `dialout` group can use `/dev/rpmsg*`.
+- It enables `pb2-pru.service`, which starts both PRUs at boot.
+- It installs `tmux` with apt if the image doesn't have it. The stock image doesn't. This needs the board to reach the internet, which the default USB connection doesn't give it. If it can't, the script says so and carries on; see [Common problems](#common-problems).
+
+The M4 image goes in as `/lib/firmware/pb2_m4.elf`, not under the kernel's default name `am62-mcu-m4f0_0-fw`. So the M4 stays off at boot until `pb2-demo` starts it.
+
+Give the board about 30 seconds to reboot, then log back in.
+
+### 4. Run the demo
+
+On the board:
+
+```
+pb2-demo --tmux
+```
+
+- It asks for your `sudo` password once.
+- It restarts the M4, PRU0, and PRU1 with the installed firmware, then opens a tmux session with four windows: `linux`, `zephyr`, `pru0`, and `pru1`.
+- [What you should see](#what-you-should-see) shows the output of a passing run, and [Commands](#commands) lists what you can type in the `linux` window.
+
+tmux keys: switch windows with Ctrl+b then 0–3. Detach, leaving the demo running, with Ctrl+b then d. Come back with `pb2-demo --attach --tmux`.
+
+To stop the demo, run `tmux kill-session -t pb2`. Typing `quit` in the `linux` window only ends that window.
+
+Without tmux, plain `pb2-demo` prints all four windows on one console instead. There, `quit` or Ctrl+C stops the whole demo.
+
+### After you change the code
+
+- **`pb2`, the PRU firmware, or the M4 firmware:** rebuild with `build.sh`, run `build.sh bundle`, copy the bundle, and run `install-beagle.sh` again. No reboot is needed: the next `pb2-demo` restarts every core with the new firmware.
+- **An overlay:** the same steps, then reboot. Pin mux only changes at boot.
+- **After the board's kernel is upgraded** (for example by `apt upgrade`): run `build.sh kmod` again, then `bundle`, `install-beagle.sh`, and reboot. The patched module only fits the kernel it was built for.
 
 ## Quick start: Yocto image
 
@@ -274,6 +330,26 @@ The full pin list is `PINMUX.md`.
 | `all` (default) | `linux`, `pru`, and `zephyr` | |
 
 ### Common problems
+
+**Debian setup**
+
+- **`ssh debian@192.168.7.2` doesn't connect.**
+  - Give the first boot a full minute.
+  - Check that the PC got an address on the new USB network interface: `ip -br addr` should show one with `192.168.7.1`. If it shows none, set that connection to automatic (DHCP) in your network manager.
+  - The serial console on the same cable (`/dev/ttyACM0`, 115200) works without any network.
+- **`REMOTE HOST IDENTIFICATION HAS CHANGED` after reflashing the card.** The new image has new SSH host keys. Run `ssh-keygen -R 192.168.7.2` and connect again.
+- **`install-beagle.sh` says it could not install tmux.** The default USB link doesn't give the board internet access.
+  - Either run plain `pb2-demo` instead of `pb2-demo --tmux`,
+  - or share the PC's internet with the board:
+    1. Add `usb_enable_dhcp=yes` to `sysconf.txt` before the first boot. The board then asks for an address instead of handing one out.
+    2. On the PC, set the board's connection to share: with NetworkManager, `nmcli connection modify "<board connection>" ipv4.method shared`. The board gets a `10.42.0.x` address; `ip neigh` on the PC shows which.
+    3. Run `install-beagle.sh` again.
+- **`install-beagle.sh` says `pru_rproc.ko was not built for <kernel>`.** The module in the bundle was built for a different kernel. Run `PB2_SSH=USER@BOARD ./beagle-linux/scripts/build.sh kmod`, then `bundle`, and copy it again.
+- **`pb2-demo` says `RPMsg devices did not show up`.** Look at `dmesg | grep -i -E "remoteproc|rpmsg|kick"` on the board.
+  - `.kick method not defined` means the stock `pru_rproc` is loaded; see the last entry below.
+  - A missing `/lib/firmware/pb2_m4.elf` or `am62x-pru0-fw` means `install-beagle.sh` didn't finish; run it again.
+
+**Builds**
 
 - **"Permission denied" deleting `build/`, `.west/`, or `modules/`.** These files came from an older checkout, whose containers wrote them as another uid. Clear them once:
   - podman: `podman unshare rm -rf build .west modules bootloader tools zephyr/upstream`
