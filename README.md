@@ -79,6 +79,17 @@ The same cable also gives a serial console, usually `/dev/ttyACM0` on the PC (11
 
 ### 2. Build on the PC
 
+**Or skip the build.** Each [release](https://github.com/kevinacahalan/pocketbeagle2-linux-zephyr-pru-demo/releases) has a ready-made bundle, `pb2-beagle-KERNEL.tar.gz`, for the kernel in the image above. It only works if `ssh USER@BOARD uname -r` prints that same kernel version (`6.18.55-arm64-k3-r59` for the 2026-10-09 image). If it does, download the tarball on the PC, then:
+
+```
+scp pb2-beagle-*.tar.gz USER@BOARD:
+ssh USER@BOARD 'tar xzf pb2-beagle-*.tar.gz'
+```
+
+Then go on to step 3 and skip its `scp` line. If the kernel differs, for example after `apt upgrade`, build as below. `install-beagle.sh` refuses a module built for another kernel.
+
+To build it yourself:
+
 ```
 ./beagle-linux/scripts/build.sh
 PB2_SSH=USER@BOARD ./beagle-linux/scripts/build.sh kmod
