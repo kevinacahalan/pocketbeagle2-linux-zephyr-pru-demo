@@ -37,7 +37,10 @@
  *   Sends the startup script, then reads commands such as xy and spi.
  */
 
+/* The linux window reads Zephyr's replies from this FIFO. */
 static int g_reply_fd = -1;
+/* The zephyr window writes them to this path. */
+static char g_reply_path[512];
 
 static void unquote(char *s)
 {
@@ -59,10 +62,27 @@ static void print_help(void)
 	printf("  zephyr chunk <text>\n");
 	printf("  zephyr xy <x> <y>\n");
 	printf("  zephyr spi [text]\n");
+	printf("  pru0 xy <x> <y>\n");
+	printf("  pru0 arm <period> <count>\n");
 	printf("  pru0 <text>\n");
-	printf("  spi\n");
+	printf("  spi [device]\n");
 	printf("  help\n");
+	printf("  quit\n");
 	fflush(stdout);
+}
+
+static void print_usage(const char *prog)
+{
+	printf("usage: %s <subcommand>\n", prog);
+	printf("  linux <fifo-dir>          the linux window (pb2-demo starts it)\n");
+	printf("  erpc <rpmsg-dev> <fifo>   the zephyr window\n");
+	printf("  peer <label> <rpmsg-dev> <fifo>  the pru0 window\n");
+	printf("  watch                     the pru1 window\n");
+	printf("  xy                        print the shared X/Y record once\n");
+	printf("  spi [device]              write hello on Linux SPI0\n");
+	printf("\n");
+	printf("In the linux window, ");
+	print_help();
 }
 
 static int write_all(int fd, const void *buf, size_t len)
@@ -90,22 +110,32 @@ static void note_line(const char *line)
 	char buf[720];
 	int n;
 
+	int fd;
+
 	printf("%s\n", line);
 	fflush(stdout);
-	if (g_reply_fd < 0) {
+	if (!g_reply_path[0]) {
+		return;
+	}
+	/*
+	 * Open per line. The linux window recreates the FIFO when it starts,
+	 * so a descriptor kept from earlier can point at a stale one. With no
+	 * reader, O_NONBLOCK makes the open fail and the line is skipped.
+	 */
+	fd = open(g_reply_path, O_WRONLY | O_NONBLOCK);
+	if (fd < 0) {
 		return;
 	}
 	n = snprintf(buf, sizeof(buf), "%s\n", line);
 	if (n > 0 && (size_t)n < sizeof(buf)) {
-		write_all(g_reply_fd, buf, (size_t)n);
+		write_all(fd, buf, (size_t)n);
 	}
+	close(fd);
 }
 
 static int peer_main(int argc, char **argv)
 {
-	const char *label = argv[2];
-	const char *devpath = argv[3];
-	const char *fifopath = argv[4];
+	const char *label, *devpath, *fifopath;
 	int dev, fifo;
 	char rx[512];
 	char line[512];
@@ -115,13 +145,21 @@ static int peer_main(int argc, char **argv)
 		fprintf(stderr, "usage: %s peer <label> <dev> <fifo>\n", argv[0]);
 		return 2;
 	}
+	label = argv[2];
+	devpath = argv[3];
+	fifopath = argv[4];
 
 	dev = open(devpath, O_RDWR);
 	if (dev < 0) {
 		perror(devpath);
 		return 1;
 	}
-	fifo = open(fifopath, O_RDONLY);
+	/*
+	 * O_RDWR keeps a writer open on our own FIFO. With O_RDONLY, the FIFO
+	 * reports end-of-file once the linux window exits, and poll() then
+	 * returns at once forever.
+	 */
+	fifo = open(fifopath, O_RDWR);
 	if (fifo < 0) {
 		perror(fifopath);
 		return 1;
@@ -250,13 +288,17 @@ static uint32_t chunk_seq = 1;
 
 static int do_chunk(const char *text)
 {
-	volatile struct pb2_bulk *bulk = map_phys(PB2_BULK_ADDR, PB2_BULK_SIZE);
+	/* Mapped once and kept. Each chunk reuses the same 64 KiB window. */
+	static volatile struct pb2_bulk *bulk;
 	uint32_t n;
 	uint32_t crc;
 	uint32_t got = 0;
 	uint32_t seq;
 	uint32_t i;
 
+	if (!bulk) {
+		bulk = map_phys(PB2_BULK_ADDR, PB2_BULK_SIZE);
+	}
 	if (!bulk) {
 		return -1;
 	}
@@ -382,8 +424,7 @@ static int erpc_line(const char *line)
 
 static int erpc_main(int argc, char **argv)
 {
-	const char *devpath = argv[2];
-	const char *fifopath = argv[3];
+	const char *devpath, *fifopath;
 	int dev, fifo;
 	char chunk[256];
 	char line[512];
@@ -393,6 +434,8 @@ static int erpc_main(int argc, char **argv)
 		fprintf(stderr, "usage: %s erpc <dev> <fifo>\n", argv[0]);
 		return 2;
 	}
+	devpath = argv[2];
+	fifopath = argv[3];
 	dev = open(devpath, O_RDWR);
 	if (dev < 0) {
 		perror(devpath);
@@ -402,19 +445,19 @@ static int erpc_main(int argc, char **argv)
 		fprintf(stderr, "eRPC client init failed\n");
 		return 1;
 	}
-	fifo = open(fifopath, O_RDONLY);
+	/* O_RDWR for the same reason as in peer_main: no end-of-file spin. */
+	fifo = open(fifopath, O_RDWR);
 	if (fifo < 0) {
 		perror(fifopath);
 		return 1;
 	}
 	{
-		char reply_path[512];
 		size_t n = strlen(fifopath);
 
 		if (n >= 3 && !strcmp(fifopath + n - 3, ".in") &&
-		    snprintf(reply_path, sizeof(reply_path), "%.*s.reply",
-			     (int)(n - 3), fifopath) < (int)sizeof(reply_path)) {
-			g_reply_fd = open(reply_path, O_RDWR | O_NONBLOCK);
+		    snprintf(g_reply_path, sizeof(g_reply_path), "%.*s.reply",
+			     (int)(n - 3), fifopath) >= (int)sizeof(g_reply_path)) {
+			g_reply_path[0] = '\0';
 		}
 	}
 	printf("zephyr window ready on %s (eRPC)\n", devpath);
@@ -595,7 +638,7 @@ static int xy_main(void)
 
 static int linux_main(int argc, char **argv)
 {
-	const char *dir = argv[2];
+	const char *dir;
 	int zephyr, pru0;
 	char input[512];
 
@@ -603,6 +646,7 @@ static int linux_main(int argc, char **argv)
 		fprintf(stderr, "usage: %s linux <fifo-dir>\n", argv[0]);
 		return 2;
 	}
+	dir = argv[2];
 
 	{
 		char path[512];
@@ -690,7 +734,7 @@ static int linux_main(int argc, char **argv)
 		}
 		msg = strchr(input, ' ');
 		if (!msg) {
-			printf("use zephyr say|arm|chunk|xy|spi ... or pru0 <text> or spi or help\n");
+			printf("use zephyr say|arm|chunk|xy|spi ..., pru0 xy|arm|<text>, spi, or help\n");
 			fflush(stdout);
 			continue;
 		}
@@ -703,7 +747,7 @@ static int linux_main(int argc, char **argv)
 		} else if (!strcmp(input, "pru0")) {
 			send_to(pru0, "pru0", msg);
 		} else {
-			printf("use zephyr say|arm|chunk|xy|spi ... or pru0 <text> or spi or help\n");
+			printf("use zephyr say|arm|chunk|xy|spi ..., pru0 xy|arm|<text>, spi, or help\n");
 			fflush(stdout);
 		}
 	}
@@ -713,11 +757,11 @@ static int linux_main(int argc, char **argv)
 int main(int argc, char **argv)
 {
 	if (argc < 2) {
-		fprintf(stderr, "usage: %s peer|erpc|watch|xy|spi|linux ...\n", argv[0]);
+		fprintf(stderr, "usage: %s peer|erpc|watch|xy|spi|linux ... (-h for help)\n", argv[0]);
 		return 2;
 	}
 	if (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")) {
-		print_help();
+		print_usage(argv[0]);
 		return 0;
 	}
 	if (!strcmp(argv[1], "peer")) {
