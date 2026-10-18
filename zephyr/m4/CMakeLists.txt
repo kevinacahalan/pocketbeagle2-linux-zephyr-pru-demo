@@ -4,9 +4,10 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(pb2_m4 C CXX)
 
-# EmbeddedRPC 1.14.0, cloned by build.sh. The Zephyr module Kconfig selects
-# SERIAL from a symbol that depends on the full C++ library, and that loop
-# fails configuration on Zephyr 4.4. The library sources are compiled here,
+# EmbeddedRPC 1.14.0, cloned by build.sh. It is not used as a Zephyr module:
+# that module's Kconfig selects SERIAL from a symbol that depends on the full
+# C++ library, and the loop fails configuration. The library sources are
+# compiled here,
 # with erpc_malloc/erpc_free on the Zephyr heap. Transport is the existing
 # OpenAMP RPMsg endpoint, not the module's UART or RPMsg-Lite ports.
 set(ERPC ${CMAKE_CURRENT_LIST_DIR}/../../third_party/erpc/erpc_c)
