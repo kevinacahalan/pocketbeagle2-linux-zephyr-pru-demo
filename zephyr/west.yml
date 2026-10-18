@@ -8,4 +8,13 @@ manifest:
       remote: zephyrproject-rtos
       revision: e35b686be50a224e381fd35174be9fcb1a4ddd37  # this hash is Zephyr main on 11 Oct 2026
       path: zephyr/upstream
-      import: true
+      # Only the modules this M4 app needs. "import: true" would fetch all
+      # of Zephyr's modules (every vendor HAL, about 8 GB).
+      import:
+        name-allowlist:
+          - cmsis
+          - cmsis_6
+          - hal_ti
+          - libmetal
+          - open-amp
+          - picolibc
